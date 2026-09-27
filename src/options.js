@@ -7,7 +7,14 @@
 // menus are filled by the same client that runs the checks.
 
 import { languages } from "./languagetool.js";
-import { normalize, originOf, problemsWith } from "./settings.js";
+import {
+    MAX_IDLE_SECONDS,
+    MIN_IDLE_SECONDS,
+    normalize,
+    originOf,
+    problemsWith,
+    UNDERLINES,
+} from "./settings.js";
 
 const form = document.getElementById("settings");
 const fields = {
@@ -16,14 +23,29 @@ const fields = {
     motherTongue: document.getElementById("mother-tongue"),
     variants: document.getElementById("variants"),
     picky: document.getElementById("picky"),
+    underline: document.getElementById("underline"),
+    idleSeconds: document.getElementById("idle-seconds"),
 };
 const variantsNote = document.getElementById("variants-note");
 const status = document.getElementById("status");
+
+// The words a level is shown with belong to the page and not to the settings,
+// which name no screen. A level with no word here is shown by its own value, so
+// a level added to the list is never an empty line in the menu.
+const UNDERLINE_LABELS = { thin: "Thin", normal: "Normal", thick: "Thick" };
 
 // The languages as the server last named them. An empty list is what a server
 // that never answered leaves behind, and the menus have to hold the saved
 // settings all the same.
 let offered = [];
+
+// The levels and the bounds are read from the settings module instead of being
+// restated here, so the form can only offer what normalize accepts.
+for (const level of UNDERLINES) {
+    fields.underline.add(new Option(UNDERLINE_LABELS[level] ?? level, level));
+}
+fields.idleSeconds.min = MIN_IDLE_SECONDS;
+fields.idleSeconds.max = MAX_IDLE_SECONDS;
 
 function report(text, problem = false) {
     status.textContent = text;
@@ -38,12 +60,17 @@ function fromForm() {
         motherTongue: fields.motherTongue.value,
         preferredVariants: [...fields.variants.selectedOptions].map((option) => option.value),
         picky: fields.picky.checked,
+        underline: fields.underline.value,
+        // An empty field reads as NaN, which normalize answers with the default.
+        idleSeconds: Number(fields.idleSeconds.value),
     });
 }
 
 function fill(settings) {
     fields.url.value = settings.url;
     fields.picky.checked = settings.picky;
+    fields.underline.value = settings.underline;
+    fields.idleSeconds.value = settings.idleSeconds;
     fillMenu(fields.language, settings.language);
     fillMenu(fields.motherTongue, settings.motherTongue);
     fillVariants(settings.preferredVariants);

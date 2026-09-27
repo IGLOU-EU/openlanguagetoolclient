@@ -3,6 +3,9 @@
   "name": "OpenLanguageToolClient",
   "version": "0.1.0",
   "description": "Underlines the errors reported by a LanguageTool server in the compose window.",
+  "icons": {
+    "16": "icon.svg"
+  },
   "browser_specific_settings": {
     "gecko": {
       "id": "openlanguagetoolclient@iglou.eu",

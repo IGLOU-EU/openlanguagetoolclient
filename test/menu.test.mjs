@@ -14,10 +14,12 @@
  * none names a parent, because two or more top level items are collapsed by the
  * platform into one submenu named with the extension's own name, which is the
  * shape a secondary path takes now that the click on the word is how a
- * correction is applied. That grouping is also what lets every item keep its
- * colour, the explanation included, since a custom icon is honoured only for an
- * item inside a submenu and a lone top level item has its own replaced by the
- * extension's. The explanation never takes a click, because there is nothing in
+ * correction is applied. That grouping is also what lets the explanation keep
+ * its colour, since a custom icon is honoured only for an item inside a submenu
+ * and a lone top level item has its own replaced by the extension's. The colour
+ * is said on that one line and on no other, and a replacement carries the icon
+ * that draws nothing rather than none at all, for the reason `src/menu.js` gives
+ * beside it. The explanation never takes a click, because there is nothing in
  * it to apply, and its title is shortened here, because the platform crops it at
  * a width no extension can read and takes the tail with no sign that anything is
  * missing. And an item's id is what comes back from the click, so an id that
@@ -27,20 +29,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { MAX_REPLACEMENTS, menuItemsFor } from "../src/menu.js";
-import { SWATCHES, choiceFor, swatchFor } from "../src/swatch.js";
+import { MAX_REPLACEMENTS, MESSAGE_LIMIT, menuItemsFor } from "../src/menu.js";
+import { SWATCHES, blankIcon, choiceFor, swatchFor } from "../src/swatch.js";
 
 /** The id of the item that explains the mistake and refuses the click. */
 const MESSAGE_ID = "olc-message";
-
-/**
- * Longest title the menu sends.
- *
- * The platform crops an item at a width the extension cannot read and cannot
- * influence, so the string is shortened just under it, with an ellipsis of our
- * own that says the tail was dropped.
- */
-const TITLE_LIMIT = 80;
 
 /** One character, so the shortening costs the text as little room as possible. */
 const ELLIPSIS = "…";
@@ -100,15 +93,28 @@ const many = Array.from({ length: 20 }, (_, rank) => `option ${rank}`);
 const idsOf = (items) => items.map((item) => item.id);
 const titlesOf = (items) => items.map((item) => item.title);
 
-/** The swatch every item of a match of that family carries. */
+/** The swatch the explanation of a mistake of that family carries. */
 const iconOf = (family = ISSUE_TYPE) => ({ 16: swatchFor(SWATCHES[family]) });
+
+/** What every other entry carries instead, which draws nothing and says nothing. */
+const BLANK = { 16: blankIcon() };
+
+/**
+ * Every icon a swatch can be.
+ *
+ * A test says "one of the swatches" through this rather than by restating the
+ * format src/swatch.js gives them. That format is that module's business, it has
+ * already changed once, and a test that copies it turns its own change into a
+ * false failure.
+ */
+const EVERY_SWATCH = Object.values(SWATCHES).map(swatchFor);
 
 /**
  * The explanation, which says what is objected to and applies nothing.
  *
- * It is disabled because it is a caption and not a choice, and it carries the
- * swatch like everything else: the platform does not dim an icon, so the colour
- * is read there even on a line drawn grey.
+ * It is disabled because it is a caption and not a choice, and it is the one item
+ * that carries the swatch: the platform does not dim an icon, so the colour is
+ * read there even on a line drawn grey.
  */
 const explanationOf = (title, family = ISSUE_TYPE) => ({
     id: MESSAGE_ID,
@@ -118,16 +124,16 @@ const explanationOf = (title, family = ISSUE_TYPE) => ({
 });
 
 /**
- * One replacement, with the swatch of the family its mistake belongs to.
+ * One replacement, which says nothing of the kind of mistake it corrects.
  *
  * The title is what src/swatch.js shows for the replacement, which for an
  * ordinary one is the replacement itself and for a deletion is the covered text.
  */
-const replacementOf = (rank, title, family = ISSUE_TYPE) => ({
+const replacementOf = (rank, title) => ({
     id: `olc-${rank}`,
     title,
     enabled: true,
-    icons: iconOf(family),
+    icons: BLANK,
 });
 
 /** The ids of that many replacements, in the order the menu offers them. */
@@ -230,14 +236,19 @@ test("the explanation refuses the click and every replacement takes one", () => 
     }
 });
 
-test("the explanation carries the swatch too, disabled as it is", () => {
+test("the explanation carries the swatch, and it is the only item that does", () => {
     // Inside the extension's submenu a custom icon is honoured on every item, and
     // the platform dims the text of a disabled item without touching its icon, so
-    // the colour of the mistake is read on the line that names it.
-    const items = menuItemsFor(match(MESSAGE, ["café", "cafés"]));
+    // the colour of the mistake is read on the very line that names it. One line
+    // is where it is said: the same colour under it again says nothing more.
+    const [explanation, ...replacements] = menuItemsFor(match(MESSAGE, ["café", "cafés"]));
 
-    assert.deepEqual(items[0].icons, iconOf());
-    assert.equal(new Set(items.map((item) => item.icons[16])).size, 1);
+    assert.deepEqual(explanation.icons, iconOf());
+    assert.equal(replacements.length, 2);
+    for (const item of replacements) {
+        assert.deepEqual(item.icons, BLANK, item.id);
+        assert.notEqual(item.icons[16], explanation.icons[16], item.id);
+    }
 });
 
 test("the explanation's id names no replacement rank", () => {
@@ -361,7 +372,7 @@ test("a match whose message is empty gives the replacements alone", () => {
 test("a match whose message is missing gives the replacements alone", () => {
     const items = menuItemsFor({ offset: 9, length: 4, replacements: ["café"] });
 
-    assert.deepEqual(items, [replacementOf(0, "café", "other")]);
+    assert.deepEqual(items, [replacementOf(0, "café")]);
 });
 
 test("a message that is no string gives the replacements alone too", () => {
@@ -605,8 +616,8 @@ test("menuItemsFor leaves the caller's match alone", () => {
 });
 
 test("a message of exactly the limit is sent whole", () => {
-    const message = messageOf(TITLE_LIMIT);
-    assert.equal(message.length, TITLE_LIMIT);
+    const message = messageOf(MESSAGE_LIMIT);
+    assert.equal(message.length, MESSAGE_LIMIT);
 
     const [explanation] = menuItemsFor(match(message, ["café"]));
 
@@ -617,28 +628,28 @@ test("a message of exactly the limit is sent whole", () => {
 test("a message one character past the limit is shortened to the limit", () => {
     // The ellipsis is counted in the eighty, so the line the platform receives
     // is never longer than the one that was measured to fit.
-    const message = messageOf(TITLE_LIMIT + 1);
-    assert.equal(message.length, TITLE_LIMIT + 1);
+    const message = messageOf(MESSAGE_LIMIT + 1);
+    assert.equal(message.length, MESSAGE_LIMIT + 1);
 
     const [explanation] = menuItemsFor(match(message, ["café"]));
 
-    assert.equal(explanation.title.length, TITLE_LIMIT);
-    assert.equal(explanation.title, message.slice(0, TITLE_LIMIT - 1) + ELLIPSIS);
+    assert.equal(explanation.title.length, MESSAGE_LIMIT);
+    assert.equal(explanation.title, message.slice(0, MESSAGE_LIMIT - 1) + ELLIPSIS);
 });
 
-for (const length of [TITLE_LIMIT + 1, TITLE_LIMIT + 2, 158, 500]) {
+for (const length of [MESSAGE_LIMIT + 1, MESSAGE_LIMIT + 2, 158, 500]) {
     test(`a message of ${length} characters is shortened, ellipsis included`, () => {
         const message = messageOf(length);
 
         const [explanation] = menuItemsFor(match(message, ["café"]));
 
-        assert.equal(explanation.title.length, TITLE_LIMIT);
+        assert.equal(explanation.title.length, MESSAGE_LIMIT);
         assert.ok(explanation.title.endsWith(ELLIPSIS));
-        assert.equal(explanation.title.slice(0, -1), message.slice(0, TITLE_LIMIT - 1));
+        assert.equal(explanation.title.slice(0, -1), message.slice(0, MESSAGE_LIMIT - 1));
     });
 }
 
-for (const length of [1, 40, TITLE_LIMIT - 1, TITLE_LIMIT]) {
+for (const length of [1, 40, MESSAGE_LIMIT - 1, MESSAGE_LIMIT]) {
     test(`a message of ${length} characters is left exactly as it is`, () => {
         const message = messageOf(length);
 
@@ -655,7 +666,7 @@ test("the shortening spends one character on the ellipsis, not three dots", () =
 
     assert.ok(explanation.title.endsWith(ELLIPSIS));
     assert.ok(!explanation.title.endsWith("..."));
-    assert.equal(explanation.title.length, TITLE_LIMIT);
+    assert.equal(explanation.title.length, MESSAGE_LIMIT);
 });
 
 test("the shortening leaves one ellipsis in the title, not one per cut", () => {
@@ -685,34 +696,40 @@ for (const [issueType, family] of [
     ["uncategorized", "other"],
     ["", "other"],
 ]) {
-    test(`a ${issueType || "nameless"} mistake colours its whole menu ${family}`, () => {
-        const items = menuItemsFor(match(MESSAGE, ["café", "cafés"], issueType));
+    test(`a ${issueType || "nameless"} mistake is explained in the ${family} colour`, () => {
+        const [explanation, ...replacements] = menuItemsFor(
+            match(MESSAGE, ["café", "cafés"], issueType),
+        );
 
-        assert.equal(items.length, 3);
-        for (const item of items) {
-            assert.deepEqual(item.icons, iconOf(family), item.id);
+        assert.deepEqual(explanation.icons, iconOf(family));
+        assert.equal(replacements.length, 2);
+        for (const item of replacements) {
+            assert.deepEqual(item.icons, BLANK, item.id);
         }
     });
 }
 
-test("two matches of different kinds give their menus different swatches", () => {
+test("two matches of different kinds are explained in different colours", () => {
     // The colour is the only sign of what kind of mistake it is, so two kinds
     // that came out the same would say nothing at all.
     const typo = menuItemsFor(match(MESSAGE, ["café"], "misspelling"));
     const grammar = menuItemsFor(match(MESSAGE, ["mangé"], "grammar"));
 
     assert.equal(typo[0].icons[16], swatchFor(SWATCHES.misspelling));
-    assert.equal(typo[1].icons[16], swatchFor(SWATCHES.misspelling));
     assert.equal(grammar[0].icons[16], swatchFor(SWATCHES.grammar));
-    assert.notEqual(typo[1].icons[16], grammar[1].icons[16]);
+    assert.notEqual(typo[0].icons[16], grammar[0].icons[16]);
+    // And their replacements say nothing about the kind, in either menu.
+    assert.equal(typo[1].icons[16], grammar[1].icons[16]);
 });
 
-test("every item of one match carries the same swatch, explanation included", () => {
-    // They are the same mistake read five ways, not five mistakes.
+test("a mistake is coloured once however many replacements it has", () => {
+    // They are the same mistake read five ways, not five mistakes, and the line
+    // that says what is objected to is where that is said.
     const items = menuItemsFor(match(MESSAGE, many, "typographical"));
 
     assert.equal(items.length, MAX_REPLACEMENTS + 1);
-    assert.equal(new Set(items.map((item) => item.icons[16])).size, 1);
+    assert.equal(items.filter((item) => EVERY_SWATCH.includes(item.icons[16])).length, 1);
+    assert.equal(items[0].icons[16], swatchFor(SWATCHES.typographical));
 });
 
 for (const [label, issueType] of [
@@ -722,15 +739,15 @@ for (const [label, issueType] of [
     ["an issueType that is an array", ["misspelling"]],
     ["an issueType nobody has a colour for", "mistranslation"],
 ]) {
-    test(`${label} takes the other family's swatch`, () => {
+    test(`${label} is explained in the other family's colour`, () => {
         const items = menuItemsFor(match(MESSAGE, ["café"], issueType));
 
         assert.equal(items[0].icons[16], swatchFor(SWATCHES.other));
-        assert.equal(items[1].icons[16], swatchFor(SWATCHES.other));
+        assert.equal(items[1].icons[16], blankIcon());
     });
 }
 
-test("a match with no issueType field at all takes the other family's swatch", () => {
+test("a match with no issueType field at all is explained in the other colour", () => {
     // Every match normalized by src/languagetool.js has the field, but the match
     // crosses a message boundary and an older cached one predates it.
     const found = { offset: 9, length: 4, message: MESSAGE, replacements: ["café"] };
@@ -739,17 +756,20 @@ test("a match with no issueType field at all takes the other family's swatch", (
     const items = menuItemsFor(found);
 
     assert.equal(items[0].icons[16], swatchFor(SWATCHES.other));
-    assert.equal(items[1].icons[16], swatchFor(SWATCHES.other));
+    assert.equal(items[1].icons[16], blankIcon());
 });
 
-test("a swatch is the only thing the icons object carries, under the key 16", () => {
+test("an icon is the only thing the icons object carries, under the key 16", () => {
     // The platform asks for sixteen device pixels and picks the key equal to the
     // request, so a dictionary under another key would be a fallback at best.
-    const items = menuItemsFor(match(MESSAGE, ["café"]));
+    const [explanation, ...replacements] = menuItemsFor(match(MESSAGE, ["café", "cafés"]));
 
-    for (const item of items) {
+    for (const item of [explanation, ...replacements]) {
         assert.deepEqual(Object.keys(item.icons), ["16"], item.id);
-        assert.ok(item.icons[16].startsWith("data:image/png;base64,"), item.id);
+    }
+    assert.ok(EVERY_SWATCH.includes(explanation.icons[16]));
+    for (const item of replacements) {
+        assert.equal(item.icons[16], blankIcon(), item.id);
     }
 });
 
@@ -777,15 +797,15 @@ for (const [label, found, limit] of EVERY_SHAPE) {
             assert.equal(typeof item.id, "string");
             assert.equal(typeof item.title, "string");
             assert.notEqual(item.title, "", item.id);
-            // One mistake, one colour, on every line it occupies.
-            assert.deepEqual(item.icons, items[0].icons, item.id);
+            // Every entry carries an icon, coloured or not, because one with none
+            // is padded into the indicator column instead of taking it.
             assert.deepEqual(Object.keys(item.icons), ["16"], item.id);
-            assert.ok(item.icons[16].startsWith("data:image/png;base64,"), item.id);
         }
 
         if (explained) {
             assert.equal(items[0].enabled, false);
-            assert.ok(items[0].title.length <= TITLE_LIMIT, `title of ${items[0].title.length}`);
+            assert.ok(items[0].title.length <= MESSAGE_LIMIT, `title of ${items[0].title.length}`);
+            assert.ok(EVERY_SWATCH.includes(items[0].icons[16]), items[0].icons[16]);
         }
 
         const replacements = explained ? items.slice(1) : items;
@@ -796,6 +816,9 @@ for (const [label, found, limit] of EVERY_SHAPE) {
         );
         for (const item of replacements) {
             assert.equal(item.enabled, true, item.id);
+            // The colour belongs to the line that explains the mistake, so a
+            // replacement carries the icon that draws nothing.
+            assert.equal(item.icons[16], blankIcon(), item.id);
             // An entry is a line the user has to be able to see and read: a
             // replacement that deletes or that writes a space has no caption of
             // its own, and an empty one would be an invisible clickable line.

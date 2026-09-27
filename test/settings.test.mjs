@@ -8,18 +8,36 @@
  * version of the extension wrote and what a hand-edited profile holds. A shape
  * nobody meant to store is the ordinary case here, not an exotic one.
  *
- * Two readings of the contract are pinned here, each stated above the tests
- * that hold it: the trim happens before the trailing slashes are cut, and a
- * language that falls back to "auto" keeps its preferred variants.
+ * Three readings of the contract are pinned here, each stated above the tests
+ * that hold it: the trim happens before the trailing slashes are cut, a
+ * language that falls back to "auto" keeps its preferred variants, and a wait
+ * outside the bounds is brought back to the nearest one instead of being
+ * dropped for the default.
  */
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { DEFAULTS, normalize, originOf, problemsWith } from "../src/settings.js";
+import {
+    DEFAULTS,
+    MAX_IDLE_SECONDS,
+    MIN_IDLE_SECONDS,
+    normalize,
+    originOf,
+    problemsWith,
+    UNDERLINES,
+} from "../src/settings.js";
 
 /** The keys a settings object carries, sorted the way Object.keys gives them back. */
-const SETTINGS_KEYS = ["language", "motherTongue", "picky", "preferredVariants", "url"];
+const SETTINGS_KEYS = [
+    "idleSeconds",
+    "language",
+    "motherTongue",
+    "picky",
+    "preferredVariants",
+    "underline",
+    "url",
+];
 
 /** Settings as a filled options page yields them, every field usable. */
 const GOOD = {
@@ -28,6 +46,8 @@ const GOOD = {
     motherTongue: "fr",
     preferredVariants: ["fr-FR", "en-US"],
     picky: true,
+    underline: "thick",
+    idleSeconds: 3,
 };
 
 /**
@@ -52,6 +72,25 @@ const BLANKS = [
     ["a tab and a line break", "\t\n"],
 ];
 
+/**
+ * Values that are no finite number, as storage can hand them back.
+ *
+ * The numeric string is there on purpose: coerced it would pass for the wait
+ * that was typed, so a field read without a type check would let it through.
+ */
+const NOT_NUMBERS = [
+    ["undefined", undefined],
+    ["null", null],
+    ["not a number", Number.NaN],
+    ["infinity", Number.POSITIVE_INFINITY],
+    ["minus infinity", Number.NEGATIVE_INFINITY],
+    ["a numeric string", "1.5"],
+    ["an empty string", ""],
+    ["a boolean", true],
+    ["an object", {}],
+    ["an array", [1.5]],
+];
+
 test("DEFAULTS is the settings of an extension nobody has configured", () => {
     // The only test that spells the defaults out, so a change of default is
     // decided here and nowhere else.
@@ -61,10 +100,12 @@ test("DEFAULTS is the settings of an extension nobody has configured", () => {
         motherTongue: "",
         preferredVariants: [],
         picky: false,
+        underline: "normal",
+        idleSeconds: 1.5,
     });
 });
 
-test("DEFAULTS carries the five keys and nothing else", () => {
+test("DEFAULTS carries the seven keys and nothing else", () => {
     assert.deepEqual(Object.keys(DEFAULTS).sort(), SETTINGS_KEYS);
 });
 
@@ -312,6 +353,111 @@ for (const [label, language] of [...NOT_STRINGS, ...BLANKS]) {
     });
 }
 
+test("UNDERLINES names the levels from the thinnest to the thickest", () => {
+    // The thickness is frozen in a stylesheet loaded once, so a level named here
+    // without a rule written there would underline nothing at all.
+    assert.deepEqual(UNDERLINES, ["thin", "normal", "thick"]);
+});
+
+test("the default underline is one of the levels offered", () => {
+    // The options page builds its menu from that list, and a default outside it
+    // would show as no choice at all.
+    assert.ok(UNDERLINES.includes(DEFAULTS.underline));
+});
+
+for (const underline of UNDERLINES) {
+    test(`the underline ${underline} is kept as it is`, () => {
+        assert.equal(normalize({ ...GOOD, underline }).underline, underline);
+    });
+}
+
+for (const [label, underline] of [
+    ...NOT_STRINGS,
+    ...BLANKS,
+    ["an unknown level", "medium"],
+    ["a capitalized level", "Thin"],
+    ["an upper case level", "THICK"],
+    ["a level in a list", ["thin"]],
+]) {
+    test(`an underline that is ${label} takes the default level`, () => {
+        // The level is the name of a rule, not a word, so the comparison is
+        // exact and another spelling names no rule.
+        assert.equal(normalize({ ...GOOD, underline }).underline, DEFAULTS.underline);
+    });
+}
+
+test("an underline keeps its level through the spaces around it", () => {
+    // A hand edited profile is the case, and " thick " names its level as
+    // plainly as the language field does.
+    assert.equal(normalize({ ...GOOD, underline: "  thick  " }).underline, "thick");
+});
+
+test("the idle bounds run from half a second to a minute", () => {
+    // The only test that spells the bounds out, so a change of range is decided
+    // here and nowhere else.
+    assert.equal(MIN_IDLE_SECONDS, 0.5);
+    assert.equal(MAX_IDLE_SECONDS, 60);
+});
+
+test("the default wait sits inside the bounds", () => {
+    assert.ok(DEFAULTS.idleSeconds >= MIN_IDLE_SECONDS);
+    assert.ok(DEFAULTS.idleSeconds <= MAX_IDLE_SECONDS);
+});
+
+for (const idleSeconds of [0.5, 0.75, 1, 1.5, 2.25, 12.3, 59.9, 60]) {
+    test(`an idleSeconds of ${idleSeconds} is kept as it is`, () => {
+        // Seconds are stored and not milliseconds, so the value is the one that
+        // was typed, fractions included.
+        assert.equal(normalize({ ...GOOD, idleSeconds }).idleSeconds, idleSeconds);
+    });
+}
+
+test("both bounds are kept exactly", () => {
+    const shortest = normalize({ ...GOOD, idleSeconds: MIN_IDLE_SECONDS });
+    const longest = normalize({ ...GOOD, idleSeconds: MAX_IDLE_SECONDS });
+
+    assert.equal(shortest.idleSeconds, MIN_IDLE_SECONDS);
+    assert.equal(longest.idleSeconds, MAX_IDLE_SECONDS);
+});
+
+/**
+ * The reading taken where a bound could be read both ways.
+ *
+ * A wait out of range is brought back to the nearest bound and not replaced by
+ * the default, because what comes back from storage may be an older version or
+ * a hand edited profile, and such a value still says which end was wanted.
+ */
+for (const [label, idleSeconds] of [
+    ["just under the minimum", 0.49],
+    ["a tenth of a second", 0.1],
+    ["zero", 0],
+    ["a negative wait", -5],
+    ["a wait no keyboard could reach", -1e9],
+]) {
+    test(`an idleSeconds ${label} is clamped to the minimum`, () => {
+        assert.equal(normalize({ ...GOOD, idleSeconds }).idleSeconds, MIN_IDLE_SECONDS);
+    });
+}
+
+for (const [label, idleSeconds] of [
+    ["just over the maximum", 60.01],
+    ["a minute and a half", 90],
+    ["an hour", 3600],
+    ["the largest number there is", Number.MAX_VALUE],
+]) {
+    test(`an idleSeconds ${label} is clamped to the maximum`, () => {
+        assert.equal(normalize({ ...GOOD, idleSeconds }).idleSeconds, MAX_IDLE_SECONDS);
+    });
+}
+
+for (const [label, idleSeconds] of NOT_NUMBERS) {
+    test(`an idleSeconds that is ${label} takes the default wait`, () => {
+        // An empty number field reads as NaN, and a wait of NaN would either
+        // check on every keystroke or never check at all.
+        assert.equal(normalize({ ...GOOD, idleSeconds }).idleSeconds, DEFAULTS.idleSeconds);
+    });
+}
+
 test("normalize does not touch what it is given", () => {
     const raw = {
         url: "  https://lt.example/v2//  ",
@@ -319,6 +465,8 @@ test("normalize does not touch what it is given", () => {
         motherTongue: " fr ",
         preferredVariants: [" fr-FR ", "fr-FR", ""],
         picky: "true",
+        underline: "  thick  ",
+        idleSeconds: "90",
     };
     const before = structuredClone(raw);
 
@@ -357,9 +505,17 @@ for (const [label, raw] of [
     ["a boolean", true],
     ["an array", []],
     ["a function", () => "https://lt.example/v2"],
-    ["every field wrong", { url: 1, language: 2, motherTongue: 3, preferredVariants: 4, picky: 5 }],
+    ["every field wrong", {
+        url: 1,
+        language: 2,
+        motherTongue: 3,
+        preferredVariants: 4,
+        picky: 5,
+        underline: 6,
+        idleSeconds: "7",
+    }],
 ]) {
-    test(`normalize of ${label} gives the five keys and nothing else`, () => {
+    test(`normalize of ${label} gives the seven keys and nothing else`, () => {
         const settings = normalize(raw);
 
         assert.equal(typeof settings, "object");
@@ -402,6 +558,8 @@ test("normalize never throws, whatever it is handed", () => {
         Symbol("settings"),
         { url: {}, language: [], motherTongue: 0, preferredVariants: "fr-FR", picky: "yes" },
         { preferredVariants: [Symbol("fr"), () => "fr"] },
+        { underline: 3, idleSeconds: "1.5" },
+        { underline: Symbol("thin"), idleSeconds: Symbol("wait") },
     ];
 
     for (const raw of hostile) {
@@ -471,6 +629,8 @@ test("nothing but the address is a problem", () => {
         motherTongue: "zz-ZZ",
         preferredVariants: [],
         picky: false,
+        underline: "thick",
+        idleSeconds: 60,
     });
 
     assert.deepEqual(problems, []);

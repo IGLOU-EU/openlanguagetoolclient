@@ -1,14 +1,30 @@
 /**
  * What says which kind of mistake something belongs to: a colour, and the name a
- * human reads for it.
+ * human reads for it. And the icon an entry with nothing to show carries to
+ * claim the indicator column, which draws nothing at all.
  *
- * A menu item accepts an icon, and only as a PNG or JPEG `data:` URL: an SVG
- * `data:` URL and an `ImageData` are both refused by the schema
- * (`modules/Schemas.sys.mjs`, `imageDataOrStrictRelativeUrl`). Nothing else on a
- * menu item can carry a colour, since an extension cannot style one at all. So
- * the swatch is a one by one PNG, built here from the hexadecimal value, which
- * keeps the colours readable and editable in one place instead of frozen inside
- * base64 blobs or image files.
+ * Both are files packaged with the extension, because the compose window takes
+ * nothing else. Its own document, `messengercompose.xhtml`, declares `img-src
+ * chrome: moz-icon:`, and Gecko checks a `data:` URI against that policy before
+ * anything else, so a `data:image/png;base64,` icon is refused there and every
+ * menu of the window draws the engine's torn page in its place. A packaged file,
+ * which the schema resolves against `moz-extension:`, loads. It stays the one
+ * way to put a colour on a menu item, since an extension cannot style one at
+ * all, and it cannot be an SVG `data:` URL or an `ImageData` either: the schema
+ * refuses both (`modules/Schemas.sys.mjs`, `imageDataOrStrictRelativeUrl`).
+ *
+ * The colours are still declared here and nowhere else. Each file is named after
+ * the hexadecimal value it is drawn in, so its name says what it holds. The
+ * shape is not stated here either: `test/icons.mjs` draws every packaged swatch
+ * and says what one looks like, and `test/swatch.test.mjs` draws them all again
+ * to hold the committed file, the picture and the table equal. A colour added to
+ * the table is therefore drawn from there and never by hand.
+ *
+ * What is left to say here is the one property no drawing tool honours: a filter
+ * byte of zero in front of every row, since filtering them compresses better.
+ * The test reads the rows as they stand rather than carry a decoder of the five
+ * filters for pictures that need none, so a file written by anything else has to
+ * be written unfiltered too, and that test is what says whether it is.
  *
  * No Thunderbird API and no DOM, like the rest of the event page's modules, so
  * the whole thing is provable under Node.
@@ -17,10 +33,11 @@
 /**
  * One colour per family of mistake.
  *
- * `other` is the wavy underline's own colour, which `src/compose.css` still
- * declares for itself: a stylesheet injected into the page being written cannot
- * read a module, so the two sides have no single value to share yet. The
- * families peel off from what the user already sees rather than renaming it.
+ * The five are the very colours `src/compose.css` underlines the text with,
+ * which it declares for itself: a stylesheet injected into the page being
+ * written cannot read a module, and there is no build step to derive one side
+ * from the other. `test/underline.test.mjs` holds the two copies equal instead,
+ * so a mistake is never marked in one colour and named in another.
  */
 export const SWATCHES = {
     misspelling: "#c0392b",
@@ -145,118 +162,33 @@ export function choiceFor(value, covered) {
 const HEX = /^#[0-9a-f]{6}$/i;
 
 /**
- * The five swatches are asked for again at every right click and never change,
- * so each colour is encoded the first time it is wanted and kept.
- */
-const encoded = new Map();
-
-/**
  * The icon for one colour, ready for `menus.create`.
  *
  * @param {string} color `#rrggbb`. Anything else gives the `other` swatch: a
  *        menu entry without its icon is a smaller loss than a right click that
  *        throws.
- * @returns {string} A `data:image/png;base64,` URL.
+ * @returns {string} The name of a file packaged with the extension, relative
+ *          with no leading slash, which is the form the schema resolves against
+ *          `moz-extension:`. Every colour of `SWATCHES` has one.
  */
 export function swatchFor(color) {
     const known = typeof color === "string" && HEX.test(color);
     const usable = known ? color.toLowerCase() : SWATCHES.other;
-
-    let url = encoded.get(usable);
-    if (url === undefined) {
-        url = `data:image/png;base64,${base64(png(usable))}`;
-        encoded.set(usable, url);
-    }
-    return url;
-}
-
-/** Signature of every PNG file, from the specification's clause 5.2. */
-const SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
-
-/**
- * A one by one opaque PNG of one colour.
- *
- * Truecolour, 8 bits per channel, no interlacing, so the image data is the one
- * scanline's filter byte followed by the three components.
- */
-function png(color) {
-    const scanline = [
-        0,
-        parseInt(color.slice(1, 3), 16),
-        parseInt(color.slice(3, 5), 16),
-        parseInt(color.slice(5, 7), 16),
-    ];
-
-    const header = [...be32(1), ...be32(1), 8, 2, 0, 0, 0];
-    return [
-        ...SIGNATURE,
-        ...chunk("IHDR", header),
-        ...chunk("IDAT", deflate(scanline)),
-        ...chunk("IEND", []),
-    ];
-}
-
-/** Length, type, data, and the CRC of the type and data together. */
-function chunk(type, data) {
-    const body = [...type].map((character) => character.charCodeAt(0)).concat(data);
-    return [...be32(data.length), ...body, ...be32(crc32(body))];
+    return `swatch-${usable.slice(1)}.png`;
 }
 
 /**
- * The zlib stream a PNG's image data has to be.
+ * The icon an entry with nothing of its own to show carries.
  *
- * A stored block, which deflate allows and which every decoder must accept:
- * four bytes have nothing to compress, and a real compressor here would be a
- * hundred lines for no gain.
+ * It draws nothing, and it is there to claim the indicator column and for
+ * nothing else. The platform keeps that column for the entries carrying an icon
+ * and pads the others into it, so a menu mixing the two starts its labels at as
+ * many places as it has kinds of entry.
+ *
+ * @returns {string} The name of a file packaged with the extension, transparent
+ *          from edge to edge so that a light menu and a dark one both show
+ *          through it.
  */
-function deflate(data) {
-    const length = data.length;
-    return [
-        0x78,
-        0x01,
-        0x01,
-        length & 0xff,
-        (length >>> 8) & 0xff,
-        ~length & 0xff,
-        (~length >>> 8) & 0xff,
-        ...data,
-        ...be32(adler32(data)),
-    ];
+export function blankIcon() {
+    return "blank.png";
 }
-
-const be32 = (value) => [
-    (value >>> 24) & 0xff,
-    (value >>> 16) & 0xff,
-    (value >>> 8) & 0xff,
-    value & 0xff,
-];
-
-const CRC_TABLE = Array.from({ length: 256 }, (_, index) => {
-    let value = index;
-    for (let bit = 0; bit < 8; bit += 1) {
-        value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
-    }
-    return value >>> 0;
-});
-
-/** The CRC-32 every PNG chunk ends with, specification clause 5.3. */
-function crc32(bytes) {
-    let crc = 0xffffffff;
-    for (const byte of bytes) {
-        crc = CRC_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8);
-    }
-    return (crc ^ 0xffffffff) >>> 0;
-}
-
-/** The checksum a zlib stream ends with, RFC 1950. */
-function adler32(bytes) {
-    let low = 1;
-    let high = 0;
-    for (const byte of bytes) {
-        low = (low + byte) % 65521;
-        high = (high + low) % 65521;
-    }
-    return high * 65536 + low;
-}
-
-const base64 = (bytes) => btoa(String.fromCharCode(...bytes));

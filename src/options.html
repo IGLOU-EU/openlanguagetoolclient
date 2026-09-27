@@ -43,6 +43,17 @@
                 <label for="picky">Picky mode, which also reports style and typography</label>
             </p>
 
+            <p class="field">
+                <label for="underline">Underline thickness</label>
+                <select id="underline"></select>
+            </p>
+
+            <p class="field">
+                <label for="idle-seconds">Wait before checking</label>
+                <input id="idle-seconds" type="number" step="0.1">
+                <span class="hint">Seconds of quiet typing before the message is checked.</span>
+            </p>
+
             <p class="actions">
                 <button type="submit">Save</button>
                 <span id="status" role="status"></span>

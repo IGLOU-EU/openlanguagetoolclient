@@ -22,6 +22,7 @@ Every fact has one home. Read it there and point to it. Never copy it.
 | The server, the texts and the parameters of the fixtures | `test/fixtures/cases.json` |
 | How the fixtures are regenerated | `test/fixtures/capture.mjs`, in its header comment |
 | How the live tests are run | `test/live.test.mjs`, in its header comment |
+| The shape of the packaged swatch icons, and how they are redrawn | `test/icons.mjs` |
 
 The owner keeps the design notes, the roadmap and the spike results outside the repository, in `docs/` and `spike/` on their own machine, ignored by git and written in French. An agent working on that machine may read them as background, but must never commit them, and must never copy their content into repository files. This file and `CONTRIBUTING.md` obey the same rule as the table: they say where a thing is, not what it is.
 

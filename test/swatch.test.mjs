@@ -1,35 +1,47 @@
 /**
- * The contract of src/swatch.js: the colour that says what kind of mistake it is.
+ * The contract of src/swatch.js: the colour that says what kind of mistake it is,
+ * and the icon an entry of the toolbar button's menu carries to claim its column.
  *
  * A plain module, with no Thunderbird API and no DOM, so the whole mapping is
  * provable under Node where no menu exists.
  *
- * Three rules carry the rest. The family is read from `issueType`, the server's
+ * Four rules carry the rest. The family is read from `issueType`, the server's
  * own word for the kind of mistake, because it is spelled the same whatever the
  * language while a category id is named after the rule set that produced it. A
  * kind nobody recognises still gets a colour, since an item with an empty icon
- * gutter next to items that have one reads as a broken menu. And the image is
- * decoded here rather than compared against a captured string: the platform
- * accepts a menu icon only as a `data:image/png;base64,` URL and draws the
- * bitmap as given, so what has to be proved is that the bytes really are a PNG
- * of that colour, not that the function still answers what it answered
- * yesterday.
+ * gutter next to items that have one reads as a broken menu. And the icons are
+ * files packaged with the extension, which is what the compose window loads, so
+ * they are read and decoded here from the very files Thunderbird ships: the name
+ * of a file is a promise about a colour, and nothing but its bytes says whether
+ * it keeps it. What those bytes are held against is `test/icons.mjs`, the shape
+ * they were drawn from, which makes the committed files golden ones: a colour
+ * that drifted from the table and a shape that drifted from the drawing each
+ * fail here, and the files cannot be quietly replaced by something else.
  */
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { crc32, inflateSync } from "node:zlib";
 
-import { SWATCHES, choiceFor, familyOf, paintFor, swatchFor } from "../src/swatch.js";
+import {
+    SWATCHES, blankIcon, choiceFor, familyOf, paintFor, swatchFor,
+} from "../src/swatch.js";
+import { GLYPH_SIZE, swatchPixels } from "./icons.mjs";
 
-/** The one prefix the menus schema accepts for an inline menu icon. */
-const PREFIX = "data:image/png;base64,";
+/** Where the packaged icons sit, which is the directory the extension is built from. */
+const srcDir = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 
 /** The eight bytes every PNG file opens with. */
 const SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
-/** Truecolour with no alpha channel, which is what an opaque swatch needs. */
+/** Truecolour with no alpha channel, which no packaged icon is drawn as. */
 const COLOR_TYPE_RGB = 2;
+
+/** Truecolour with an alpha channel, which is what carries a shape and a colour. */
+const COLOR_TYPE_RGBA = 6;
 
 /**
  * The five colours as they are declared.
@@ -106,6 +118,7 @@ const UNUSABLE = [
     ["an object", {}],
     ["an array", ["#c0392b"]],
     ["a swatch URL", "data:image/png;base64,AAAA"],
+    ["a swatch file name", "swatch-c0392b.png"],
 ];
 
 /**
@@ -130,18 +143,20 @@ const NOT_A_STRING = [
 ];
 
 /**
- * Reads a swatch URL back into the picture it carries.
+ * Reads one packaged icon back into the picture it carries.
  *
  * A PNG is a signature then a chain of length-type-data-CRC chunks. Checking
  * the CRC of each one matters: a decoder is entitled to refuse a chunk whose
- * checksum is wrong, so a swatch that computes them badly would be a valid
- * looking string that draws nothing.
+ * checksum is wrong, so an image that computes them badly would be a file of the
+ * right name that draws nothing.
  */
-function decode(url) {
-    assert.equal(typeof url, "string");
-    assert.ok(url.startsWith(PREFIX), `not a PNG data URL: ${String(url).slice(0, 40)}`);
+function decode(name) {
+    assert.equal(typeof name, "string");
 
-    const bytes = Buffer.from(url.slice(PREFIX.length), "base64");
+    const path = join(srcDir, name);
+    assert.ok(existsSync(path), `no packaged file named ${name}`);
+
+    const bytes = readFileSync(path);
     assert.deepEqual(bytes.subarray(0, SIGNATURE.length), SIGNATURE);
 
     const chunks = [];
@@ -179,14 +194,48 @@ function decode(url) {
         compression: header[10],
         filter: header[11],
         interlace: header[12],
-        // One scanline: the filter byte the format puts in front of every row,
-        // then the row itself.
-        scanline: inflateSync(Buffer.concat(pixels)),
+        // Every row in order, each one opening with the filter byte the format
+        // puts in front of it.
+        raster: inflateSync(Buffer.concat(pixels)),
     };
 }
 
-/** The three numbers the image is made of, filter byte dropped. */
-const rgbOf = (url) => Array.from(decode(url).scanline.subarray(1));
+/** How many numbers one pixel is made of, by the colour type its header names. */
+const CHANNELS = { [COLOR_TYPE_RGB]: 3, [COLOR_TYPE_RGBA]: 4 };
+
+/**
+ * Every pixel of an icon, row by row and run together, each as its numbers.
+ *
+ * The filter byte in front of every row is dropped, and checked on the way: a
+ * row announcing any other filter has the decoder add back a neighbour these
+ * images never subtracted.
+ */
+function pixelsOf(name) {
+    const image = decode(name);
+    const channels = CHANNELS[image.colorType];
+    assert.ok(channels !== undefined, `neither RGB nor RGBA: ${image.colorType}`);
+
+    const stride = image.width * channels + 1;
+    const pixels = [];
+    for (let row = 0; row < image.height; row += 1) {
+        const at = row * stride;
+        assert.equal(
+            image.raster[at],
+            0,
+            `${name} row ${row} carries PNG filter ${image.raster[at]}, which this `
+            + "decoder does not undo: write the file with unfiltered rows, as the "
+            + "header of src/swatch.js says a packaged icon is written",
+        );
+
+        for (let column = 0; column < image.width; column += 1) {
+            const pixel = at + 1 + column * channels;
+            pixels.push(Array.from(image.raster.subarray(pixel, pixel + channels)));
+        }
+    }
+
+    assert.equal(image.raster.length, image.height * stride, "trailing bytes");
+    return pixels;
+}
 
 test("SWATCHES names the five families and gives each a readable colour", () => {
     // The only test that spells the colours out, so a change of mind is decided
@@ -283,89 +332,122 @@ test("familyOf always answers one of the five keys of SWATCHES", () => {
     }
 });
 
-test("a swatch is a PNG data URL, which is the one thing the platform accepts", () => {
-    // Measured on the shipped binary: the menus schema takes a relative path, a
-    // moz-extension, blob or http(s) URL, or a data URL whose prefix is exactly
-    // data:image/png;base64, or data:image/jpeg;base64,. An SVG data URL is
-    // refused outright, so the prefix is not a detail.
-    for (const color of Object.values(SWATCHES)) {
-        assert.ok(swatchFor(color).startsWith(PREFIX), color);
+test("a swatch is the file named after the colour, and not a URL of any kind", () => {
+    // Measured on the shipped binary: the menus schema takes a strictly relative
+    // path, a moz-extension, blob or http(s) URL, or a data URL whose prefix is
+    // exactly data:image/png;base64, or data:image/jpeg;base64,. It lets the data
+    // URL through and the compose window's own Content-Security-Policy then
+    // refuses the load, so a path is the only form an icon has there.
+    //
+    // The name is derived from the colour and not looked up, so this file holds
+    // no list of file names to fall out of step with the table.
+    for (const [family, color] of Object.entries(SWATCHES)) {
+        const path = swatchFor(color);
+
+        assert.equal(path, `swatch-${color.slice(1)}.png`, family);
+        assert.ok(!path.includes(":"), path);
+        assert.ok(!path.startsWith("/"), path);
+        assert.ok(!path.startsWith("."), path);
     }
 });
 
-test("a swatch is one pixel by one pixel, eight bits, truecolour", () => {
+test("every colour of SWATCHES has a file of its own under src/", () => {
+    // A colour named in the table with no file beside it is an icon that fails to
+    // load, which loses the indicator column and staggers the labels of the whole
+    // menu.
+    for (const [family, color] of Object.entries(SWATCHES)) {
+        assert.ok(existsSync(join(srcDir, swatchFor(color))), family);
+    }
+});
+
+test("a swatch file is a sixteen by sixteen PNG, eight bits, with an alpha channel", () => {
+    // Sixteen is the size the menu entries declare and the bitmap is drawn as
+    // given, so any other size is left to the layout engine to scale. The alpha
+    // channel is what carries the shape, the colour standing on every pixel.
     for (const [family, color] of Object.entries(SWATCHES)) {
         const image = decode(swatchFor(color));
 
-        assert.equal(image.width, 1, family);
-        assert.equal(image.height, 1, family);
+        assert.equal(image.width, GLYPH_SIZE, family);
+        assert.equal(image.height, GLYPH_SIZE, family);
         assert.equal(image.bitDepth, 8, family);
-        assert.equal(image.colorType, COLOR_TYPE_RGB, family);
+        assert.equal(image.colorType, COLOR_TYPE_RGBA, family);
         assert.equal(image.compression, 0, family);
         assert.equal(image.filter, 0, family);
         assert.equal(image.interlace, 0, family);
     }
 });
 
-test("a swatch holds exactly the colour it was asked for", () => {
+test("a swatch file holds nothing but the colour it is named after", () => {
+    // The drift this exists to catch: a file drawn in one colour and saved under
+    // another's name paints a family in a colour nothing underlines with, and no
+    // run and nothing on screen would say which of the two is wrong. The colour
+    // is on every pixel whatever its alpha, so this reads the whole file and not
+    // the part of it that happens to be drawn.
     for (const [family, color] of Object.entries(SWATCHES)) {
-        assert.deepEqual(rgbOf(swatchFor(color)), PIXELS[family], family);
+        const pixels = pixelsOf(swatchFor(color));
+
+        assert.equal(pixels.length, GLYPH_SIZE * GLYPH_SIZE, family);
+        for (const pixel of pixels) {
+            assert.deepEqual(pixel.slice(0, 3), PIXELS[family], family);
+        }
     }
 });
 
-test("a swatch is one row: the filter byte, then one triplet", () => {
-    const image = decode(swatchFor(SWATCHES.misspelling));
-
-    assert.equal(image.scanline.length, 4);
-    // Filter type zero, the row kept as it is. Anything else would have the
-    // decoder subtract a neighbour that does not exist.
-    assert.equal(image.scanline[0], 0);
-});
-
-test("a swatch is opaque: no alpha channel and no transparency chunk", () => {
-    // A translucent swatch over a menu background the extension cannot read
-    // would come out as an unpredictable colour, which defeats the point.
-    for (const color of Object.values(SWATCHES)) {
-        const image = decode(swatchFor(color));
-
-        assert.equal(image.colorType, COLOR_TYPE_RGB);
-        assert.ok(!image.types.includes("tRNS"), "a tRNS chunk makes a colour transparent");
-        assert.ok(!image.types.includes("PLTE"), "a palette is not a truecolour image");
+test("a swatch file is the shape test/icons.mjs draws for its colour", () => {
+    // Which is what makes the committed file a golden one: the shape has a home
+    // of its own, and a file redrawn by hand or by an editor fails here instead
+    // of shipping as a sixth thing nobody described. Decoded pixels and not raw
+    // bytes, because another zlib would compress the same picture differently.
+    for (const [family, color] of Object.entries(SWATCHES)) {
+        assert.deepEqual(pixelsOf(swatchFor(color)), swatchPixels(color), family);
     }
 });
 
-test("a colour no family uses is drawn all the same", () => {
-    // The proof that the image is built from the colour rather than picked from
-    // a handful of frozen blobs, which is what keeps the colours editable.
-    assert.deepEqual(rgbOf(swatchFor("#010203")), [1, 2, 3]);
-    assert.deepEqual(rgbOf(swatchFor("#000000")), [0, 0, 0]);
-    assert.deepEqual(rgbOf(swatchFor("#ffffff")), [255, 255, 255]);
-    assert.deepEqual(rgbOf(swatchFor("#00ff80")), [0, 255, 128]);
+test("a swatch is a mark and not a full bleed square", () => {
+    // Read from the file and not from the drawing: both halves of the contract
+    // have to be true of what Thunderbird actually ships. Something is drawn
+    // solid, and the four corners of the bitmap are untouched, which is what
+    // makes the mark read as one rather than as a block of colour.
+    for (const [family, color] of Object.entries(SWATCHES)) {
+        const pixels = pixelsOf(swatchFor(color));
+        const last = GLYPH_SIZE - 1;
+
+        assert.ok(pixels.some((pixel) => pixel[3] === 255), `${family} draws nothing solid`);
+        for (const corner of [0, last, last * GLYPH_SIZE, last * GLYPH_SIZE + last]) {
+            assert.equal(pixels[corner][3], 0, `${family} corner ${corner}`);
+        }
+    }
 });
 
-test("the five families give five different swatches", () => {
-    const urls = Object.values(SWATCHES).map((color) => swatchFor(color));
+test("the five families give five different files", () => {
+    const paths = Object.values(SWATCHES).map((color) => swatchFor(color));
 
-    // Five colours that came out as one string would mean the menu says nothing
-    // about the kind of mistake, which is the whole reason for the icon.
-    assert.equal(new Set(urls).size, 5);
+    // Two families sharing a file is one of them borrowing the other's colour,
+    // and the menu would then say nothing about the kind of mistake, which is the
+    // whole reason for the icon.
+    assert.equal(new Set(paths).size, 5);
+    // Five different pictures too, which a drawing run that put one colour into
+    // all five files would give five names for.
+    assert.equal(new Set(paths.map((path) => JSON.stringify(pixelsOf(path)))).size, 5);
 });
 
-test("the same colour twice gives the same URL", () => {
+test("the same colour twice gives the same file", () => {
     // The event page persists the properties of every menu item to disk, so an
     // answer that varied between two calls would rewrite the store for nothing.
     for (const color of Object.values(SWATCHES)) {
         assert.equal(swatchFor(color), swatchFor(color));
     }
-    assert.equal(swatchFor("#010203"), swatchFor("#010203"));
 });
 
-test("upper and lower case hexadecimal are the same colour", () => {
-    assert.equal(swatchFor("#C0392B"), swatchFor("#c0392b"));
-    assert.equal(swatchFor("#8E44AD"), swatchFor("#8e44ad"));
-    assert.equal(swatchFor("#00FF80"), swatchFor("#00ff80"));
-    assert.deepEqual(rgbOf(swatchFor("#C0392B")), PIXELS.misspelling);
-    assert.deepEqual(rgbOf(swatchFor("#AbCdEf")), [171, 205, 239]);
+test("upper and lower case hexadecimal name the same file", () => {
+    // The table is written in lower case and so are the files, and a file system
+    // that ignores the difference is not something to count on.
+    for (const color of Object.values(SWATCHES)) {
+        const path = swatchFor(color.toUpperCase());
+
+        assert.equal(path, swatchFor(color));
+        assert.equal(path, path.toLowerCase());
+    }
 });
 
 for (const [label, color] of UNUSABLE) {
@@ -374,31 +456,30 @@ for (const [label, color] of UNUSABLE) {
         // with an empty icon gutter beside items that have one reads as broken.
         assert.doesNotThrow(() => swatchFor(color));
         assert.equal(swatchFor(color), swatchFor(SWATCHES.other));
-        assert.deepEqual(rgbOf(swatchFor(color)), PIXELS.other);
     });
 }
 
 test("the fallback is the other family's colour, not black and not white", () => {
     // Black or white would read as a missing icon rather than as a kind of
     // mistake nobody named.
-    const fallback = rgbOf(swatchFor(undefined));
-
-    assert.deepEqual(fallback, PIXELS.other);
-    assert.notDeepEqual(fallback, [0, 0, 0]);
-    assert.notDeepEqual(fallback, [255, 255, 255]);
+    for (const pixel of pixelsOf(swatchFor(undefined))) {
+        assert.deepEqual(pixel.slice(0, 3), PIXELS.other);
+        assert.notDeepEqual(pixel.slice(0, 3), [0, 0, 0]);
+        assert.notDeepEqual(pixel.slice(0, 3), [255, 255, 255]);
+    }
 });
 
-test("the two functions compose into a colour for any issue type at all", () => {
+test("the two functions compose into a packaged file for any issue type at all", () => {
     // How src/menu.js uses them, so the pair is proved to work together and not
     // only apart.
     for (const value of ["misspelling", "WHITESPACE", "uncategorized", "", null, 42, {}]) {
-        const url = swatchFor(SWATCHES[familyOf(value)]);
+        const path = swatchFor(SWATCHES[familyOf(value)]);
 
-        assert.ok(url.startsWith(PREFIX), String(value));
-        assert.equal(decode(url).width, 1);
+        assert.ok(existsSync(join(srcDir, path)), String(value));
+        assert.equal(decode(path).width, GLYPH_SIZE, String(value));
     }
-    assert.deepEqual(rgbOf(swatchFor(SWATCHES[familyOf("misspelling")])), PIXELS.misspelling);
-    assert.deepEqual(rgbOf(swatchFor(SWATCHES[familyOf("uncategorized")])), PIXELS.other);
+    assert.equal(swatchFor(SWATCHES[familyOf("misspelling")]), swatchFor(SWATCHES.misspelling));
+    assert.equal(swatchFor(SWATCHES[familyOf("uncategorized")]), swatchFor(SWATCHES.other));
 });
 
 // What the panel shows for one mistake, where the menu shows an icon. The panel
@@ -526,15 +607,17 @@ test("a label is a word a reader recognises, not the family it comes from", () =
 });
 
 test("paintFor and swatchFor agree on the colour of every issue type", () => {
-    // The panel writes the colour into a style and the menu draws it as a one
-    // pixel PNG. The same mistake has to come out the same colour in both, and
+    // The panel writes the colour into a style and the menu shows the file named
+    // after it. The same mistake has to come out the same colour in both, and
     // this is also what proves the pair carries a colour swatchFor accepts:
     // anything else would fall back to the other family's blue here.
     for (const [issueType] of FAMILIES) {
         const paint = paintFor(issueType);
 
         assert.equal(swatchFor(paint.color), swatchFor(SWATCHES[familyOf(issueType)]));
-        assert.deepEqual(rgbOf(swatchFor(paint.color)), PIXELS[familyOf(issueType)]);
+        for (const pixel of pixelsOf(swatchFor(paint.color))) {
+            assert.deepEqual(pixel.slice(0, 3), PIXELS[familyOf(issueType)], issueType);
+        }
     }
 });
 
@@ -946,4 +1029,53 @@ test("choiceFor leaves the caller's replacement alone", () => {
     }
 
     assert.deepEqual(replacements, before);
+});
+
+
+// What an entry of the toolbar button's own menu carries, where the compose
+// body's menu carries a colour. Nothing is drawn there: the icon exists for the
+// column it claims, because the platform keeps that column for the entries
+// carrying an icon and pads the others into it, which is what staggers the
+// labels of a menu mixing the two. It is therefore the size a menu icon is drawn
+// at, and transparent from edge to edge, whatever the theme of the menu.
+
+/** The four numbers of a pixel that was not drawn. */
+const UNDRAWN = [0, 0, 0, 0];
+
+test("the blank icon is a packaged file of its own", () => {
+    // The event page persists the properties of every menu item to disk, so an
+    // answer that varied between two calls would rewrite the store for nothing.
+    // A file it shared with a swatch would paint a colour where nothing was meant
+    // to be drawn at all.
+    assert.ok(existsSync(join(srcDir, blankIcon())));
+    assert.equal(blankIcon(), blankIcon());
+    for (const color of Object.values(SWATCHES)) {
+        assert.notEqual(blankIcon(), swatchFor(color));
+    }
+});
+
+test("the blank icon is a sixteen by sixteen PNG with an alpha channel", () => {
+    // The gutter is sixteen pixels wide and the bitmap is drawn as given, so any
+    // other size is scaled by the layout engine. The alpha channel is what lets
+    // a light menu and a dark one both show through it.
+    const image = decode(blankIcon());
+
+    assert.equal(image.width, GLYPH_SIZE);
+    assert.equal(image.height, GLYPH_SIZE);
+    assert.equal(image.bitDepth, 8);
+    assert.equal(image.colorType, COLOR_TYPE_RGBA);
+    assert.equal(image.compression, 0);
+    assert.equal(image.filter, 0);
+    assert.equal(image.interlace, 0);
+});
+
+test("the blank icon draws nothing at all", () => {
+    // A single pixel showing would sit in the column of a menu entry saying
+    // something nobody meant to say.
+    const pixels = pixelsOf(blankIcon());
+
+    assert.equal(pixels.length, GLYPH_SIZE * GLYPH_SIZE);
+    for (const pixel of pixels) {
+        assert.deepEqual(pixel, UNDRAWN);
+    }
 });

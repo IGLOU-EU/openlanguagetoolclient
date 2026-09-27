@@ -8,9 +8,9 @@
 
 import { badgeFor } from "./badge.js";
 import { check, languages } from "./languagetool.js";
-import { actionMenuItems, menuItemsFor } from "./menu.js";
+import { actionMenuItems, menuItemsFor, orderFor } from "./menu.js";
 import { normalize } from "./settings.js";
-import { choiceFor, paintFor } from "./swatch.js";
+import { choiceFor, familyOf, paintFor } from "./swatch.js";
 
 // The prototype has no other feedback channel than standard output, which
 // lancer.sh captures into the log.
@@ -243,30 +243,6 @@ browser.menus.onShown.addListener((info, tab) => {
     showActionMenu(tab.id).catch((error) => log("menu not rebuilt:", String(error)));
 });
 
-/**
- * What a click in the button's menu orders of the compose window, or null when
- * the entry orders nothing of it.
- *
- * Read from the id, which `src/menu.js` is the one to compose, rather than
- * remembered from the moment the menu was built: nothing has to survive between
- * the two. `checked` is the state the platform has just put the entry in.
- */
-function orderFor(info) {
-    if (info.menuItemId === "olc-language-auto") {
-        return { type: "language", language: null };
-    }
-    if (info.menuItemId.startsWith("olc-language-")) {
-        return { type: "language", language: info.menuItemId.slice("olc-language-".length) };
-    }
-    if (info.menuItemId === "olc-picky") {
-        return { type: "picky", picky: info.checked === true };
-    }
-    if (info.menuItemId === "olc-checking") {
-        return { type: "checking", checking: info.checked === true };
-    }
-    return null;
-}
-
 // The click carries the window the menu was opened in, and the compose script of
 // that window is the side that owns the DOM. `tabs.sendMessage` needs no
 // permission of its own: only a tab's URL, title and icon are behind the `tabs`
@@ -312,8 +288,8 @@ async function checkFor(message) {
 }
 
 /**
- * One match with the colour and the name of its kind, and its replacements as
- * they are to be shown.
+ * One match with its family, the colour and the name of its kind, and its
+ * replacements as they are to be shown.
  *
  * Painted here because the panel showing them lives in a compose script, which
  * can import nothing: without this the colours would be copied into that script,
@@ -329,6 +305,11 @@ function painted(match, sent) {
     return {
         ...match,
         ...paintFor(match.issueType, match.categoryName),
+        // The family names the highlight the compose side draws the mark in, and
+        // it is decided here for the same reason as the colour: the issue types
+        // it is read from are grouped in `src/swatch.js`, which that side cannot
+        // reach.
+        family: familyOf(match.issueType),
         choices: choicesOf(match, covered),
     };
 }
@@ -360,6 +341,20 @@ async function plainTextMode(tabId) {
     const details = await browser.compose.getComposeDetails(tabId);
     log("tab", tabId, "composes in", details.isPlainText ? "plain text" : "HTML");
     return details.isPlainText;
+}
+
+/**
+ * The two settings the compose side draws and waits with, and nothing else.
+ *
+ * The shape of this answer is the contract: a compose script can read no
+ * storage, and the server address has no business in the document being
+ * written, which does nothing with it.
+ *
+ * @returns {Promise<{underline: string, idleSeconds: number}>}
+ */
+async function composeSettings() {
+    const { underline, idleSeconds } = await serverConfig();
+    return { underline, idleSeconds };
 }
 
 /**
@@ -399,6 +394,9 @@ browser.runtime.onMessage.addListener((message, sender) => {
     }
     if (message?.type === "plainText") {
         return plainTextMode(sender.tab?.id);
+    }
+    if (message?.type === "settings") {
+        return composeSettings();
     }
     if (message?.type === "state") {
         return showState(message, sender.tab?.id);

@@ -10,7 +10,26 @@
  * @property {string}   motherTongue      Empty when none is set.
  * @property {string[]} preferredVariants Empty unless the language is "auto".
  * @property {boolean}  picky             Picky mode.
+ * @property {string}   underline         One of UNDERLINES, the thickness of the mark.
+ * @property {number}   idleSeconds       Quiet typing a check waits for, in seconds.
  */
+
+/**
+ * The thicknesses the underline can take, from the thinnest to the thickest.
+ *
+ * A closed list, because the mark is drawn by a stylesheet loaded once, which
+ * has to carry a rule for every level named here.
+ */
+export const UNDERLINES = ["thin", "normal", "thick"];
+
+/**
+ * The range a wait may be set to, in seconds.
+ *
+ * Below the minimum a check would fire between two words, and above the maximum
+ * a message would be sent long before it was ever checked.
+ */
+export const MIN_IDLE_SECONDS = 0.5;
+export const MAX_IDLE_SECONDS = 60;
 
 /** What an extension nobody has configured yet reads. */
 export const DEFAULTS = {
@@ -19,12 +38,23 @@ export const DEFAULTS = {
     motherTongue: "",
     preferredVariants: [],
     picky: false,
+    underline: "normal",
+    // Seconds and not milliseconds: the stored value is the one the human typed,
+    // so the only conversion in the extension is the one the compose side makes.
+    //
+    // The server is not what sets this default, it answers between 9 and 95
+    // milliseconds on the measured sizes, so the rhythm of writing sets it
+    // instead. Anything much shorter fires in the middle of a half typed word
+    // and underlines it as a mistake, and a wait this long still reads as
+    // pending rather than as dead, because the toolbar button says a check is
+    // coming.
+    idleSeconds: 1.5,
 };
 
 /**
  * Turns whatever was stored into usable settings.
  *
- * Never throws and always returns the five fields, because what comes back from
+ * Never throws and always returns the seven fields, because what comes back from
  * `browser.storage.local` is whatever a half filled form, an older version or a
  * hand edited profile left there, and a check must not depend on it being
  * sound.
@@ -43,6 +73,8 @@ export function normalize(raw) {
         // that pair must not be representable.
         preferredVariants: language === "auto" ? listOf(raw?.preferredVariants) : [],
         picky: raw?.picky === true,
+        underline: levelOf(raw?.underline),
+        idleSeconds: secondsOf(raw?.idleSeconds),
     };
 }
 
@@ -113,6 +145,25 @@ function listOf(values) {
         }
     }
     return kept;
+}
+
+/** Anything the stylesheet has no rule for holds no thickness. */
+function levelOf(value) {
+    const level = textOf(value);
+    return UNDERLINES.includes(level) ? level : DEFAULTS.underline;
+}
+
+/**
+ * A wait out of range is brought back to the nearest bound rather than dropped,
+ * because an older version and a hand edited profile still say which end was
+ * wanted. Nothing is coerced: the options page turns its field into a number,
+ * so a value that is no number here says nothing at all.
+ */
+function secondsOf(value) {
+    if (!Number.isFinite(value)) {
+        return DEFAULTS.idleSeconds;
+    }
+    return Math.min(Math.max(value, MIN_IDLE_SECONDS), MAX_IDLE_SECONDS);
 }
 
 function parsedUrl(value) {

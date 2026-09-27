@@ -11,9 +11,24 @@
 // lancer.sh captures into the log.
 const log = (...parts) => console.log("[OLC/compose]", ...parts);
 
-// Must stay identical to the ::highlight() in compose.css: this name is the
-// only link between the highlight registry and the stylesheet.
-const HIGHLIGHT_NAME = "olc-error";
+// The thickness the settings ask for, unknown until the event page has
+// answered. A highlight is named "olc-", the family of the mistake and that
+// level, and such a name is the only link between the highlight registry and
+// compose.css, which carries one rule per family and one per level.
+let level = null;
+
+// The highlight names on screen. A family the last pass drew and this one does
+// not has to be taken out by name, and this is the only place that list exists:
+// the compose side holds no copy of the families, which are declared in
+// src/swatch.js and travel on each match.
+let drawn = new Set();
+
+// The family of a mistake the event page named nothing usable for. That field
+// crosses a message boundary, so no pass may depend on it: this is the colour
+// every mistake shared before the families existed, and a mark in it is still a
+// mark, where a repaint that threw would leave the window with none and no way
+// to get one back.
+const FALLBACK_FAMILY = "other";
 
 // Measured against the server: it refuses a text over 30,000 characters with an
 // HTTP 413, and the public LanguageTool API stops at 20,000. Cutting at 20,000
@@ -25,14 +40,6 @@ const CHUNK_LIMIT = 20000;
 // at 0.20 on six characters and 0.66 on a twenty character paragraph, where it
 // was wrong as often as right, against 0.99 from seventy four characters up.
 const CONFIDENCE_FLOOR = 0.9;
-
-// Quiet writing before a check runs on its own. The server is not the
-// constraint, it answers between 9 and 95 milliseconds on the measured sizes,
-// so the delay is set by the rhythm of writing instead. Anything much shorter
-// fires in the middle of a half typed word and underlines it as a mistake. The
-// wait is this long because the toolbar button says a check is coming, so it
-// reads as pending rather than as dead.
-const IDLE_DELAY = 1500;
 
 // A compose script has no import, so the scripts loaded before this one hand
 // over their API through globalThis.
@@ -200,6 +207,53 @@ async function checkChunk(chunk) {
 }
 
 /**
+ * Takes the underline off the screen.
+ *
+ * Nothing is drawn before the event page has named the level, so there is
+ * nothing to clear then either, and the registry is handed no name it could not
+ * hold.
+ */
+function clearHighlight() {
+    draw(new Map());
+}
+
+/**
+ * Puts the ranges of each family on screen, and takes off the families left
+ * without any.
+ *
+ * One highlight per family rather than one for every mistake: a ::highlight()
+ * rule is selected by the name alone, so two colours on screen mean two names in
+ * the registry. A name kept for a family this pass did not report would go on
+ * marking mistakes nothing stands behind any more.
+ *
+ * @param {Map<string, Range[]>} byFamily
+ */
+function draw(byFamily) {
+    const names = new Set();
+    for (const [family, ranges] of byFamily) {
+        const name = `olc-${family}-${level}`;
+        names.add(name);
+        CSS.highlights.set(name, new Highlight(...ranges));
+    }
+
+    for (const name of drawn) {
+        if (!names.has(name)) {
+            CSS.highlights.delete(name);
+        }
+    }
+    drawn = names;
+}
+
+/**
+ * Which of compose.css's five colours one match is drawn in.
+ *
+ * Read from the match and never worked out here: the families are grouped from
+ * the server's issue types in src/swatch.js, which this side cannot reach.
+ */
+const familyIn = (match) =>
+    typeof match.family === "string" && match.family !== "" ? match.family : FALLBACK_FAMILY;
+
+/**
  * Turns what is remembered into the underline on screen, and tells the button
  * what it stands for.
  *
@@ -210,30 +264,35 @@ async function checkChunk(chunk) {
  * text inserted at its boundary.
  *
  * @param {boolean} failed True when a request came back with nothing.
- * @returns {{matches: object[], ranges: Range[], unplaced: number}} What a pass
- * reports in its log line.
+ * @returns {{matches: object[], underlined: number, unplaced: number}} What a
+ * pass reports in its log line.
  */
 function repaint(failed) {
     const current = flatten(document.body);
     const currentBlocks = bodyBlocks(current.text);
     const matches = matchesForBlocks(currentBlocks, cache, provisional);
 
-    const ranges = [];
+    // Grouped by family, because the colour of a mark comes from the name of the
+    // highlight it was put in and from nowhere else.
+    const byFamily = new Map();
+    let underlined = 0;
     let unplaced = 0;
     for (const match of matches) {
         const range = toRange(current.segments, match.offset, match.length);
-        if (range) {
-            ranges.push(range);
-        } else {
+        if (range === null) {
             unplaced += 1;
+            continue;
         }
+
+        const family = familyIn(match);
+        if (!byFamily.has(family)) {
+            byFamily.set(family, []);
+        }
+        byFamily.get(family).push(range);
+        underlined += 1;
     }
 
-    if (ranges.length > 0) {
-        CSS.highlights.set(HIGHLIGHT_NAME, new Highlight(...ranges));
-    } else {
-        CSS.highlights.delete(HIGHLIGHT_NAME);
-    }
+    draw(byFamily);
 
     cache = prune(cache, currentBlocks);
     provisional = prune(provisional, currentBlocks);
@@ -246,7 +305,7 @@ function repaint(failed) {
         ? { busy: false, errors: matches.length, failed: true }
         : { busy: owed, errors: matches.length, failed: false });
 
-    return { matches, ranges, unplaced };
+    return { matches, underlined, unplaced };
 }
 
 async function runCheck() {
@@ -305,13 +364,13 @@ async function runCheck() {
         return;
     }
 
-    const { matches, ranges, unplaced } = repaint(failed > 0);
+    const { matches, underlined, unplaced } = repaint(failed > 0);
 
     log(learning ? "whole text" : "changed blocks", "|",
         "language", languageInForce() ?? "unknown", "|",
         blocks.length, "blocks,", chunks.length, "requests,", failed, "failed |",
         sentLength, "characters sent of", bodyLength, "in the body |",
-        matches.length, "errors returned,", ranges.length, "underlined,",
+        matches.length, "errors returned,", underlined, "underlined,",
         unplaced, "not placed");
 }
 
@@ -438,27 +497,81 @@ function setPicky(value) {
 function setChecking(value) {
     checking = value === true;
     if (!checking) {
-        CSS.highlights.delete(HIGHLIGHT_NAME);
+        clearHighlight();
         sendState({ busy: false, errors: 0, failed: false });
+        return;
+    }
+    runPassNow();
+}
+
+/**
+ * Checks again with nothing kept of what was cached, either because a choice
+ * changed what the server is asked, or because the whole message was asked for
+ * again.
+ */
+function recheck() {
+    cacheStale = true;
+    runPassNow();
+}
+
+// Built only once the event page has said how long a wait to give it. No delay
+// is spelled out here to stand in meanwhile: it would be a second declaration of
+// a value that belongs to the settings, and it would buy nothing, since an event
+// page that cannot answer the settings cannot answer a "check" either and no
+// pass would reach a server whatever wait this side picked.
+let scheduler = null;
+
+// What was asked for before the scheduler existed, "request" or "now", null when
+// nothing was. Keys move while the answer is on its way, so the wait is handled
+// in the two wrappers below rather than at each place a pass is asked for.
+let wantedPass = null;
+
+/** Asks for a pass once the writing has stopped. */
+function requestPass() {
+    if (scheduler === null) {
+        // A pass already wanted at once stays at once: it was asked for by a
+        // choice the user made, and typing after it must not push it behind a
+        // pause.
+        if (wantedPass === null) {
+            wantedPass = "request";
+        }
+        return;
+    }
+    scheduler.request();
+}
+
+/** Asks for a pass without waiting for the writing to stop. */
+function runPassNow() {
+    if (scheduler === null) {
+        wantedPass = "now";
         return;
     }
     scheduler.runNow();
 }
 
-/** Checks again against a choice that changes what the server is asked. */
-function recheck() {
-    cacheStale = true;
-    scheduler.runNow();
-}
+/** Puts the checking on the rhythm the settings ask for, and honours the wait. */
+function startScheduling({ underline, idleSeconds }) {
+    level = underline;
+    scheduler = createScheduler({
+        // Without this catch, a failure only surfaces as an "uncaught exception:
+        // Object" that says nothing.
+        run: () => runCheck().catch((error) => log("check interrupted:", String(error))),
+        // The one place in the extension where seconds become milliseconds: the
+        // wait is stored in the unit the human typed it in, and setTimeout takes
+        // the other one.
+        delay: idleSeconds * 1000,
+        setTimer: setTimeout,
+        clearTimer: clearTimeout,
+    });
 
-const scheduler = createScheduler({
-    // Without this catch, a failure only surfaces as an "uncaught exception:
-    // Object" that says nothing.
-    run: () => runCheck().catch((error) => log("check interrupted:", String(error))),
-    delay: IDLE_DELAY,
-    setTimer: setTimeout,
-    clearTimer: clearTimeout,
-});
+    const wanted = wantedPass;
+    wantedPass = null;
+    if (wanted === "now") {
+        scheduler.runNow();
+    } else if (wanted === "request") {
+        scheduler.request();
+    }
+}
 
 // One event for typing, pasting and undoing alike.
 document.addEventListener("input", () => {
@@ -468,14 +581,14 @@ document.addEventListener("input", () => {
     // The check is still a pause away, and the button has to say so at once or
     // the extension reads as dead for that whole pause.
     sendState({ busy: true });
-    scheduler.request();
+    requestPass();
 }, true);
 
 // Ctrl+Alt+S stays as the way to get a check without waiting for the pause.
 document.addEventListener("keydown", (event) => {
     if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "s") {
         event.preventDefault();
-        scheduler.runNow();
+        runPassNow();
     }
 }, true);
 
@@ -529,7 +642,7 @@ document.addEventListener("click", (event) => {
     });
 });
 
-// The orders the event page sends: one from the compose body's menu, three from
+// The orders the event page sends: one from the compose body's menu, four from
 // the button's own, and one from the send about to happen.
 browser.runtime.onMessage.addListener((message) => {
     if (message?.type === "apply") {
@@ -543,6 +656,9 @@ browser.runtime.onMessage.addListener((message) => {
     }
     if (message?.type === "checking") {
         setChecking(message.checking);
+    }
+    if (message?.type === "recheck") {
+        recheck();
     }
     if (message?.type === "closePanel") {
         panel.hide();
@@ -561,5 +677,14 @@ browser.runtime
         plainText = answer;
     })
     .catch((error) => log("composition mode not known, treated as HTML:", String(error)));
+
+// Asked once: the two settings the drawing and the rhythm are made of live in
+// the event page, which is the only side that reads the storage. Nothing is
+// checked until this answers, and a failure leaves the message alone rather than
+// getting in the way of writing it.
+browser.runtime
+    .sendMessage({ type: "settings" })
+    .then(startScheduling)
+    .catch((error) => log("settings not known, nothing is checked:", String(error)));
 
 log("compose script loaded.");

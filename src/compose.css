@@ -1,15 +1,108 @@
-/* The olc-error name must stay identical to the one compose.js registers in
-   CSS.highlights: it is the only link between the registry and this rule.
+/* The names must stay in step with two lists: the families of mistake
+   src/swatch.js declares and the levels src/settings.js allows. compose.js
+   registers "olc-" followed by the family of the mistake, a hyphen and the
+   stored level, and that naming is the only link between the highlight registry
+   and these rules. A pair with no rule here underlines nothing at all, so all
+   fifteen of them carry one.
 
-   Blue rather than red: red is the native spell checker's color, and a red
-   wavy line would be mistaken for it whenever both show up. The native
-   checker is cut in background.js anyway, because it would mark the same text
-   a second time and a single underline system must be the only thing on
-   screen.
+   The colours are the ones src/swatch.js gives the menu icons, so that a kind of
+   mistake is the same colour wherever it is shown. They are written a second
+   time here because a stylesheet injected into the page being written cannot
+   read a module, and test/underline.test.mjs is what keeps the two copies equal.
+
+   A misspelling is red, which was refused while every mistake shared a single
+   colour: red is the native spell checker's, and a red line would have been
+   mistaken for it whenever both showed up. The native checker is cut in
+   background.js anyway, because it would mark the same text a second time and a
+   single underline system must be the only thing on screen, so nothing else on
+   screen is red any more.
+
+   Dotted, and not the wavy line the mark was first drawn with: a wave sits
+   centred on the underline and its amplitude grows with the thickness, so the
+   thickest of the three levels was seen running into the lines above and below.
+   A dotted line only grows downwards and stays inside the leading, which is what
+   lets the thickness be a setting at all. Plain does the same and was tried
+   first, but a plain blue line under a word is what a hyperlink looks like.
 
    ::highlight() accepts only a subset of properties, limited to color,
    background, text decoration and shadow. A box or an icon in the text flow is
    out of reach. */
-::highlight(olc-error) {
-    text-decoration: underline wavy #1c5fd6;
+::highlight(olc-misspelling-thin),
+::highlight(olc-misspelling-normal),
+::highlight(olc-misspelling-thick) {
+    text-decoration: underline dotted #c0392b;
+}
+
+::highlight(olc-grammar-thin),
+::highlight(olc-grammar-normal),
+::highlight(olc-grammar-thick) {
+    text-decoration: underline dotted #d35400;
+}
+
+::highlight(olc-typographical-thin),
+::highlight(olc-typographical-normal),
+::highlight(olc-typographical-thick) {
+    text-decoration: underline dotted #8e44ad;
+}
+
+::highlight(olc-style-thin),
+::highlight(olc-style-normal),
+::highlight(olc-style-thick) {
+    text-decoration: underline dotted #16a085;
+}
+
+::highlight(olc-other-thin),
+::highlight(olc-other-normal),
+::highlight(olc-other-thick) {
+    text-decoration: underline dotted #1c5fd6;
+}
+
+/* The longhand rather than a thickness inside the text-decoration shorthand
+   above: that component of the shorthand is the newer syntax and is not
+   supported everywhere the longhand is. And after the colours, never before,
+   because the shorthand carries that same component and resets it.
+
+   Relative to the text and not a count of pixels, so that the mark grows with
+   the writing instead of thinning away as the text gets bigger, which is the
+   whole reason the level is offered as a setting. The quantity is the leading,
+   1lh - 1em, the room a line leaves free: the thickest level takes all of it and
+   no more, so no mark can ever reach the line below.
+
+   Floored at a pixel, because a reply carries the line spacing of the message it
+   answers and a body set to line-height 1 leaves no room at all. Without the
+   floor that text would be checked and marked with nothing, which reads as an
+   extension that has stopped working.
+
+   The descenders are crossed from these three rules rather than the five above,
+   because the property is the same for all fifteen names and three is the
+   shorter list to write it in. The engine breaks an underline wherever a
+   descender crosses it, which takes the mark away under a q, a y or a p, the
+   very letters being checked. */
+::highlight(olc-misspelling-thin),
+::highlight(olc-grammar-thin),
+::highlight(olc-typographical-thin),
+::highlight(olc-style-thin),
+::highlight(olc-other-thin) {
+    /* A hairline, and not a fraction of the leading like the other two: below a
+       pixel there is nothing left to draw. */
+    text-decoration-thickness: 1px;
+    text-decoration-skip-ink: none;
+}
+
+::highlight(olc-misspelling-normal),
+::highlight(olc-grammar-normal),
+::highlight(olc-typographical-normal),
+::highlight(olc-style-normal),
+::highlight(olc-other-normal) {
+    text-decoration-thickness: max(1px, 0.75 * (1lh - 1em));
+    text-decoration-skip-ink: none;
+}
+
+::highlight(olc-misspelling-thick),
+::highlight(olc-grammar-thick),
+::highlight(olc-typographical-thick),
+::highlight(olc-style-thick),
+::highlight(olc-other-thick) {
+    text-decoration-thickness: max(1px, 1lh - 1em);
+    text-decoration-skip-ink: none;
 }

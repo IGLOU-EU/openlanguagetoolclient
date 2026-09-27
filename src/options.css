@@ -39,6 +39,7 @@ button {
 }
 
 #url,
+#idle-seconds,
 select {
     width: 100%;
     box-sizing: border-box;
