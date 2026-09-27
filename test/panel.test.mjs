@@ -4,9 +4,11 @@
  *
  * The panel itself is a shadow root inside a compose window, so none of it can
  * be built under Node. Its placement can, and it is the part that decides
- * whether the explanation is read or half off the screen. It is therefore the
- * whole of what this file proves, and the realm the script is loaded in holds no
- * `document` so that the arithmetic stays arithmetic.
+ * whether the explanation is read or half off the screen. The realm the script
+ * is loaded in holds no `document` so that the arithmetic stays arithmetic,
+ * which leaves one thing the panel says that no call here can make it say:
+ * which family a mistake belongs to. That one is read as text at the end of
+ * this file, out of the very script Thunderbird loads.
  *
  * Two rules carry the rest. The panel hangs under the word unless it would fall
  * out of the window, in which case it goes over it, and a panel with room on
@@ -19,6 +21,9 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { loadPanel } from "./compose-helpers.mjs";
 
@@ -485,4 +490,92 @@ test("the word's left edge is kept wherever the panel fits on it", () => {
             assert.equal(spotOf(placement(...args)).left, anchor.left, said(args));
         }
     }
+});
+
+// What the panel says about the family a mistake belongs to: a band of that
+// family's colour, five pixels wide, down the edge of the card. It is built
+// with a DOM this realm does not hold, so what carries it is read as text out
+// of the script itself, the way test/underline.test.mjs reads src/compose.css.
+
+const srcDir = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
+
+const source = readFileSync(join(srcDir, "panel.js"), "utf8");
+
+/** The panel's stylesheet, which lives in the script: a shadow root inherits none. */
+const stylesheet = /const STYLE = `([\s\S]*?)`;/.exec(source)?.[1] ?? "";
+
+/** Its rules, comments taken out: they say in prose what the rules do. */
+const rules = [...stylesheet.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]*)\{([^{}]*)\}/g)]
+    .map(([, selector, body]) => ({ selector: selector.trim(), body }));
+
+/** Everything declared for one selector, from each rule that carries it. */
+const bodyFor = (selector) => rules
+    .filter((rule) => rule.selector === selector)
+    .map((rule) => rule.body)
+    .join("");
+
+/** The two corners the band ends at, named the way the card reasons. */
+const START_CORNERS = ["border-start-start-radius", "border-end-start-radius"];
+
+test("the stylesheet read here is the one the panel loads", () => {
+    // Everything below is matched against this text, so an empty one would
+    // prove the panel carries no dot by proving nothing at all.
+    assert.notEqual(stylesheet.trim(), "");
+    assert.ok(rules.some((rule) => rule.selector === ".card"), "no rule for the card");
+});
+
+test("the family's colour is a band five pixels wide down the edge of the card", () => {
+    assert.match(bodyFor(".card"), /border-inline-start-width\s*:\s*5px/);
+});
+
+test("the edge the band is on is the one the text starts at, never the left one", () => {
+    // A compose window written right to left lays the card out the other way
+    // round, and a physical edge would leave the band where the text ends.
+    assert.ok(!/border-left|borderLeft/.test(source), "a physical left edge");
+});
+
+test("the three sides the band is not on keep their hairline", () => {
+    // One edge of the card is widened. The card is not replaced by that edge.
+    assert.match(bodyFor(".card"), /border\s*:\s*1px solid ButtonBorder/);
+});
+
+for (const corner of START_CORNERS) {
+    test(`${corner} is squared, so the band is not bitten off at that end`, () => {
+        // The card's radius curves a band this wide away over its whole width,
+        // and what is left of it at either end reads as chipped.
+        assert.match(bodyFor(".card"), new RegExp(`${corner}\\s*:\\s*0`), corner);
+    });
+}
+
+test("the card keeps its rounded corners on the side that carries no band", () => {
+    assert.match(bodyFor(".card"), /border-radius\s*:\s*4px/);
+});
+
+test("the colour of the band comes from the match and from nowhere else", () => {
+    // One panel explains one mistake, so the family is that match's own fact.
+    // A colour in the stylesheet would paint every panel alike, whatever it is
+    // opened on.
+    assert.match(source, /\.style\.borderInlineStartColor\s*=\s*textOf\(match\?\.color\)/);
+    assert.ok(!/border-inline-start-color/.test(bodyFor(".card")), "a colour in the stylesheet");
+});
+
+test("a match with no usable colour keeps the hairline's colour and not the text's", () => {
+    // The colour is read through textOf, which answers the empty string for
+    // anything that is not a text, and an empty string sets no declaration at
+    // all. What the band falls back to is therefore whatever the stylesheet
+    // leaves on that side, and nothing there may name a colour: the shorthand
+    // form of the property carries currentColor, which is five pixels of
+    // CanvasText standing for a family the panel cannot name.
+    const body = bodyFor(".card");
+
+    assert.match(body, /border\s*:\s*1px solid ButtonBorder/);
+    assert.ok(!/border-inline-start\s*:/.test(body), "a shorthand on that side");
+    assert.ok(!/border-inline-start-color/.test(body), "a colour of its own on that side");
+});
+
+test("nothing of the dot is left, neither the rule nor the element", () => {
+    // The family is said once. A dot kept beside the band would say it twice,
+    // and a rule left behind styles an element nothing builds any more.
+    assert.equal(bodyFor(".dot"), "");
+    assert.ok(!/"dot"/.test(source), "a class of that name is still built");
 });

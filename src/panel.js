@@ -1,7 +1,7 @@
 /**
- * The panel a left click on an underlined word opens: the kind of mistake with
- * its colour, the language in force, the whole explanation, and one button per
- * replacement.
+ * The panel a left click on an underlined word opens: the kind of mistake, the
+ * language in force, the whole explanation, one button per replacement, and the
+ * family's colour as a band down the edge of the card.
  *
  * Where it is allowed to live is the whole difficulty, and the answer is the
  * narrowest one the platform leaves. Nothing goes into `<body>`, not even an
@@ -78,7 +78,16 @@
     color: CanvasText;
     background: Canvas;
     border: 1px solid ButtonBorder;
+    /* The family's colour is set on this side per match, so no colour is named
+       here: a match the event page painted none on keeps the hairline's own,
+       where a band of CanvasText would state a family in the colour of plain
+       text. */
+    border-inline-start-width: 5px;
     border-radius: 4px;
+    /* The radius curves a band this wide away over its whole width, and both
+       ends of it then read as chipped rather than as drawn. */
+    border-start-start-radius: 0;
+    border-end-start-radius: 0;
     box-shadow: 0 2px 8px rgb(0 0 0 / 30%);
 }
 
@@ -88,13 +97,6 @@
     gap: 0.4em;
     margin: 0;
     font-weight: bold;
-}
-
-.dot {
-    flex: none;
-    width: 0.7em;
-    height: 0.7em;
-    border-radius: 50%;
 }
 
 .language {
@@ -261,6 +263,10 @@ button.struck {
     function card(match, language, onApply) {
         const element = document.createElement("div");
         element.className = "card";
+        // The family, said once and by the colour alone. Anything that is not a
+        // colour writes no declaration, and the band stays the hairline it is
+        // widened from.
+        element.style.borderInlineStartColor = textOf(match?.color);
 
         // A click in the panel is not a click in the text being written, and
         // compose.js reads the document's clicks as clicks in the text.
@@ -288,14 +294,9 @@ button.struck {
         return element;
     }
 
-    /** The kind of mistake with its colour, and the language, on one line. */
+    /** The kind of mistake and the language, on one line. */
     function kindLine(match, language) {
         const line = paragraph("kind", textOf(match?.label));
-
-        const dot = document.createElement("span");
-        dot.className = "dot";
-        dot.style.background = textOf(match?.color);
-        line.prepend(dot);
 
         // Nothing rather than a word for it: until the server has named the
         // language with enough confidence, none is in force.

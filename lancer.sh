@@ -56,7 +56,8 @@ else
   2. Write, or Ctrl+N, to open a compose window
   3. type a faulty French paragraph, then a second one
   4. stop typing: the check runs on its own after a second and a half
-  5. the errors get a blue wavy underline, the toolbar button the count
+  5. the errors get a dotted underline in the colour of their kind, the
+     toolbar button the count
   6. right click an underlined word for the replacements
   7. Ctrl+Alt+S still forces a check without waiting
   8. close Thunderbird to read the report

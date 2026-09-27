@@ -6,7 +6,7 @@
 // file loaded in both contexts kills the compose script on its very first
 // line.
 
-import { badgeFor } from "./badge.js";
+import { buttonFor } from "./button.js";
 import { check, languages } from "./languagetool.js";
 import { actionMenuItems, menuItemsFor, orderFor } from "./menu.js";
 import { normalize } from "./settings.js";
@@ -41,7 +41,7 @@ const states = new Map();
 /**
  * Puts one compose window's state on its own button, and keeps it for the menu.
  *
- * The badge is scoped to the window the state came from, because two messages
+ * The button is scoped to the window the state came from, because two messages
  * being written at once must not show each other's count. That window is the
  * `tabId` of `sender.tab`: a standalone compose window counts as a tab for the
  * tab tracker, so a compose script's message carries one, and `windowId` is
@@ -55,19 +55,19 @@ const states = new Map();
 function showState(state, tabId) {
     states.set(tabId, state);
 
-    const { text, background, textColor, title, label } = badgeFor(state);
+    const { icon, text, background, textColor, title, label } = buttonFor(state);
     return Promise.all([
         browser.composeAction.setBadgeText({ tabId, text }),
         browser.composeAction.setBadgeBackgroundColor({ tabId, color: background }),
         browser.composeAction.setBadgeTextColor({ tabId, color: textColor }),
         browser.composeAction.setTitle({ tabId, title }),
+        // The label is the language the check ran in, which the compose toolbar
+        // shows beside the icon. The count is the badge's, and the two are read
+        // in the same glance without being the same thing.
         browser.composeAction.setLabel({ tabId, label }),
-        // Nothing can draw a border, a halo or a motion around the button, so a
-        // pass under way is shown inside the icon.
-        browser.composeAction.setIcon({
-            tabId,
-            path: state?.busy ? "icon-busy.svg" : "icon.svg",
-        }),
+        // Nothing can draw a border, a halo or a motion around the button, so
+        // what the check is doing is shown inside the icon.
+        browser.composeAction.setIcon({ tabId, path: icon }),
     ]);
 }
 

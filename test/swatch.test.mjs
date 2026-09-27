@@ -732,7 +732,7 @@ test("a name surrounded by spaces is still the name and not the English word", (
 });
 
 test("the colour is the family's whatever the second argument says", () => {
-    // The underline is drawn from the issue type alone, and a panel whose dot
+    // The underline is drawn from the issue type alone, and a card whose band
     // followed the category name would name one thing while the text marks
     // another.
     for (const [issueType, family] of FAMILIES) {
