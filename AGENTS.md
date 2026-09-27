@@ -6,7 +6,7 @@ If you are an AI assistant working on this repository, treat the rules below as 
 
 ## What this project is
 
-A free LanguageTool client for Thunderbird, and for nothing else. It is a MailExtension (Manifest V3, plain JavaScript, zero dependencies) that underlines in the compose window what a LanguageTool server flags, offers the corrections on right click, and keeps quiet otherwise. Why it exists, what it does and what it will never do are in [`README.md`](README.md).
+A free LanguageTool client for Thunderbird, and for nothing else. It is a MailExtension (Manifest V3, plain JavaScript, zero dependencies) that underlines in the compose window what a LanguageTool server flags, offers the corrections in a panel opened by a click on the underlined word, keeps the native context menu as a second way to them, and keeps quiet otherwise. Why it exists, what it does and what it will never do are in [`README.md`](README.md).
 
 ## Where the truth lives
 
@@ -56,9 +56,10 @@ These decisions are **load-bearing**. Each carries its reason here, and none is 
 
 - **The compose script does the DOM, the event page does the network.** They talk by messages, because a compose script can neither import a module nor hold a host permission.
 - **No file is shared between `src/compose.js` and `src/background.js`**, not even a logging helper. A common file loaded in both contexts kills the compose script on its first line. The compose side is several files, listed in `src/manifest.json` with `compose.js` last, and they all share a single global scope. Every one of them but `compose.js` therefore wraps itself in an IIFE and publishes exactly one global, because a top level declaration in any of them collides with the same name in another and kills it at instantiation, with no trace but an opaque exception.
-- **Underlining goes through the CSS Custom Highlight API.** Nothing is inserted into the message body, so nothing can leak into the mail that gets sent, and the rendering engine moves the marks on scroll, zoom and reflow for free. No DOM mirror.
+- **Underlining goes through the CSS Custom Highlight API.** The marks put nothing into the message body, so no mark can leak into the mail that gets sent, and the rendering engine moves them on scroll, zoom and reflow for free. No DOM mirror.
 - **`Range` objects are never kept between two checks.** A live `Range` swallows the text typed at its edge, so they are rebuilt from the server offsets at every pass.
-- **Suggestions go through the native context menu.** Nothing to draw, and nothing floating over the text the user is writing.
+- **The corrections are offered in a panel opened at the word by a left click, and in the native context menu as the secondary path.** The menu alone was tried first and rejected in use. The platform nails an extension's entries to the bottom of the menu, crops a label at a width no extension can change, and paints a disabled entry at 40% of the text colour, so the whole explanation can be neither placed nor read there.
+- **The panel's host element is a sibling of `<body>` and never inside it, it carries a closed shadow root, it does not exist while the panel is closed, and it is taken out again on `compose.onBeforeSend`.** `<body>` belongs to the editor, which selects, splits, merges and resizes what sits in it and clears its own undo stack after a direct DOM write, and the send serializes the whole document with neither `OutputBodyOnly` nor `AllowCrossShadowBoundary`. Those four properties together are what keeps a sent message from ever carrying a trace of the extension. None of them is an implementation detail, and `src/panel.js` carries the proof in its header.
 - **Only the text the user wrote goes to the server.** Quotes and signature are not theirs, and on a long thread they are most of the bytes.
 - **The extension never blocks writing or sending a message, whatever fails.** `check()` never throws. It reports a `failure` and an empty match list, because a checker that can stop a message from leaving is worse than none.
 - **No privileged code.** The extension stays inside the MailExtension API and the web platform, so it stays signable and publishable without an experiment warning.

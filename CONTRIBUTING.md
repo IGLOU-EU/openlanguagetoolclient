@@ -1,6 +1,6 @@
 # Contributing to OpenLanguageToolClient
 
-Thanks for the interest in the project. This is a free LanguageTool client for Thunderbird: a MailExtension in plain JavaScript, Manifest V3, zero dependencies, that underlines in the compose window what a LanguageTool server flags and offers the corrections on right click. The goal is to keep it small, fast on long threads and specific to Thunderbird. [`README.md`](README.md) says why it exists and what it will never do.
+Thanks for the interest in the project. This is a free LanguageTool client for Thunderbird: a MailExtension in plain JavaScript, Manifest V3, zero dependencies, that underlines in the compose window what a LanguageTool server flags and offers the corrections in a panel opened by a click on the underlined word, the context menu being the second way to them. The goal is to keep it small, fast on long threads and specific to Thunderbird. [`README.md`](README.md) says why it exists and what it will never do.
 
 > **🤖 Using an AI or an agentic tool?** Read [`AGENTS.md`](AGENTS.md) first. It holds the mandatory behaviour rules (no auto-commits, the LLM disclosure trailer, the architecture boundaries) and the map of which file owns which fact.
 

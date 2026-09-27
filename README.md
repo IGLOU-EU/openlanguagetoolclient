@@ -21,7 +21,7 @@ So this project does not fix a breakage. It replaces a tool that works with a fr
 
 ## What this project does
 
-It underlines in the compose window the errors a LanguageTool server detects, offers the corrections on right click, and keeps quiet.
+It underlines in the compose window the errors a LanguageTool server detects, offers the corrections in a panel opened by a click on the underlined word or in the context menu, and keeps quiet.
 
 ## What it will not do
 

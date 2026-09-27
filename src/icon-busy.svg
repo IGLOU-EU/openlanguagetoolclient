@@ -8,8 +8,9 @@
 
          The breathing is a CSS animation inside the file, the way Thunderbird
          animates its own spinner (chrome://messenger/skin/icons/spinning.svg).
-         Whether it runs in this exact position, a toolbar action icon, is
-         unverified: looking at the button during a check is what settles it. -->
+         That such a file really animates in this position, a toolbar action
+         icon, had no precedent in the shipped build and was watched on the
+         button to be sure of it. -->
     <style>
         @keyframes olcBreathe {
             from { scale: 0.7; opacity: 0.25; }

@@ -21,7 +21,7 @@ Ce projet ne répare donc pas une panne. Il remplace un outil qui fonctionne par
 
 ## Ce que fait ce projet
 
-Il souligne les erreurs détectées par un serveur LanguageTool dans la fenêtre de composition, propose les corrections au clic droit, et se tait.
+Il souligne les erreurs détectées par un serveur LanguageTool dans la fenêtre de composition, propose les corrections dans un panneau ouvert par un clic sur le mot souligné ou dans le menu contextuel, et se tait.
 
 ## Ce qu'il ne fera pas
 
