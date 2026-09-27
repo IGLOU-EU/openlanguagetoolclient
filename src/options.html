@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>LanguageTool</title>
+        <link rel="stylesheet" href="options.css">
+    </head>
+    <body>
+        <form id="settings">
+            <p class="field">
+                <label for="url">Server address</label>
+                <input id="url" type="text" inputmode="url" spellcheck="false"
+                       placeholder="https://languagetool.example/v2">
+                <span class="hint">The API root of your LanguageTool server, /v2 included.</span>
+            </p>
+
+            <p class="field">
+                <label for="language">Language</label>
+                <select id="language">
+                    <option value="auto">Detect automatically</option>
+                </select>
+            </p>
+
+            <p class="field">
+                <label for="mother-tongue">Mother tongue</label>
+                <select id="mother-tongue">
+                    <option value="">None</option>
+                </select>
+                <span class="hint">Used to catch the mistakes typical of that tongue.</span>
+            </p>
+
+            <p class="field">
+                <label for="variants">Preferred variants</label>
+                <select id="variants" multiple size="5"></select>
+                <span class="hint" id="variants-note" hidden>
+                    The server refuses preferred variants together with a fixed language,
+                    so they only apply to automatic detection.
+                </span>
+            </p>
+
+            <p class="field check">
+                <input id="picky" type="checkbox">
+                <label for="picky">Picky mode, which also reports style and typography</label>
+            </p>
+
+            <p class="actions">
+                <button type="submit">Save</button>
+                <span id="status" role="status"></span>
+            </p>
+        </form>
+        <script type="module" src="options.js"></script>
+    </body>
+</html>

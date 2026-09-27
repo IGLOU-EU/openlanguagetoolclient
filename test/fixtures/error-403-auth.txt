@@ -1,0 +1,1 @@
+Error: org.languagetool.server.AuthException: This is the endpoint for the basic version of LanguageTool. When using 'username' and 'apiKey' to access the premium version, use api.languagetoolplus.com instead.

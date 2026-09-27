@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16" stroke="#e74c3c">
+    <!-- The wait lives here because nothing can draw a border, a halo or a
+         motion around the button itself: the extension owns these 18 by 18
+         pixels and the badge's two colours, and nothing else. The colour is
+         written in for the reason given in icon.svg, and it is the same colour,
+         so that a pass under way reads as the same extension working and not as
+         another state.
+
+         The breathing is a CSS animation inside the file, the way Thunderbird
+         animates its own spinner (chrome://messenger/skin/icons/spinning.svg).
+         Whether it runs in this exact position, a toolbar action icon, is
+         unverified: looking at the button during a check is what settles it. -->
+    <style>
+        @keyframes olcBreathe {
+            from { scale: 0.7; opacity: 0.25; }
+            to { scale: 1; opacity: 1; }
+        }
+        #ring {
+            animation: olcBreathe 1s ease-in-out infinite alternate;
+            transform-origin: 50% 50%;
+        }
+    </style>
+    <circle id="ring" cx="8" cy="8" r="7" fill="none" stroke-width="1.5"/>
+    <path d="M1.5 8q1.625-4 3.25 0t3.25 0 3.25 0 3.25 0" fill="none" stroke-width="2" stroke-linecap="round"/>
+</svg>

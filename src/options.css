@@ -1,0 +1,80 @@
+/* The page has to read as a pane of Thunderbird's own settings, so it takes the
+   platform's interface font and the system colours instead of a palette of its
+   own. The color-scheme declaration is what makes the canvas, the text and the
+   form controls follow the light or dark preference: without it an extension
+   page is rendered light whatever the user set. */
+
+:root {
+    color-scheme: light dark;
+}
+
+body {
+    font: message-box;
+    color: CanvasText;
+    background: Canvas;
+    /* The add-ons manager hands the page a fixed width and takes its height
+       from the content, so the page sets neither. */
+    margin: 0;
+    padding: 1em;
+    max-width: 34em;
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3em;
+    margin: 0 0 1.2em;
+}
+
+.field.check {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5em;
+}
+
+input,
+select,
+button {
+    font: inherit;
+}
+
+#url,
+select {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.field.check input,
+.field.check label {
+    width: auto;
+}
+
+/* A setting that cannot be used has to look like one, because the reason it is
+   closed is written next to it and nothing else would send the reader there. */
+select:disabled {
+    opacity: 0.5;
+}
+
+.hint {
+    font-size: 0.9em;
+    color: GrayText;
+}
+
+.actions {
+    display: flex;
+    align-items: center;
+    gap: 1em;
+    margin: 0;
+}
+
+#status.problem {
+    color: #b3261e;
+}
+
+@media (prefers-color-scheme: dark) {
+    /* The one colour the page picks itself, so it is also the one that needs a
+       lighter shade to stay readable on a dark canvas. */
+    #status.problem {
+        color: #ff8a80;
+    }
+}

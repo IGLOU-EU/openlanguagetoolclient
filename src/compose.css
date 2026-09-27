@@ -1,0 +1,15 @@
+/* The olc-error name must stay identical to the one compose.js registers in
+   CSS.highlights: it is the only link between the registry and this rule.
+
+   Blue rather than red: red is the native spell checker's color, and a red
+   wavy line would be mistaken for it whenever both show up. The native
+   checker is cut in background.js anyway, because it would mark the same text
+   a second time and a single underline system must be the only thing on
+   screen.
+
+   ::highlight() accepts only a subset of properties, limited to color,
+   background, text decoration and shadow. A box or an icon in the text flow is
+   out of reach. */
+::highlight(olc-error) {
+    text-decoration: underline wavy #1c5fd6;
+}

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
+    <!-- The colour is written in because Thunderbird hands a WebExtension
+         toolbar icon no context properties: currentColor and context-fill would
+         resolve to nothing there. This red stays above 3:1 against both the
+         light and the dark toolbar, so one file serves both. -->
+    <path d="M1.5 8q1.625-4 3.25 0t3.25 0 3.25 0 3.25 0" fill="none" stroke="#e74c3c" stroke-width="2" stroke-linecap="round"/>
+</svg>

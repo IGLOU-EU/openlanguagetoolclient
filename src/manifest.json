@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "OpenLanguageToolClient",
+  "version": "0.1.0",
+  "description": "Underlines the errors reported by a LanguageTool server in the compose window.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "openlanguagetoolclient@iglou.eu",
+      "strict_min_version": "153.0"
+    }
+  },
+  "permissions": [
+    "compose",
+    "menus",
+    "messengerSettings",
+    "storage"
+  ],
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "background": {
+    "scripts": [
+      "background.js"
+    ],
+    "type": "module"
+  },
+  "compose_action": {
+    "default_title": "LanguageTool",
+    "default_icon": "icon.svg",
+    "type": "menu"
+  },
+  "compose_scripts": [
+    {
+      "css": [
+        "compose.css"
+      ],
+      "js": [
+        "body-text.js",
+        "scheduler.js",
+        "panel.js",
+        "compose.js"
+      ]
+    }
+  ],
+  "options_ui": {
+    "page": "options.html"
+  }
+}

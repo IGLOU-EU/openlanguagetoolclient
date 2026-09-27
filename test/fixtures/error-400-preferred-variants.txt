@@ -1,0 +1,1 @@
+Error: You specified 'preferredVariants' but you didn't specify 'language=auto'

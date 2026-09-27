@@ -1,0 +1,46 @@
+{
+  "server": "https://lt.salusa.vm.home.arpa/v2",
+  "cases": [
+    {
+      "file": "fr-errors.json",
+      "text": "Je voudrais un cafe. Il a manger une pomme hier.",
+      "params": { "language": "fr" }
+    },
+    {
+      "file": "fr-clean.json",
+      "text": "Le chat dort sur le canapé.",
+      "params": { "language": "fr" }
+    },
+    {
+      "file": "auto-english.json",
+      "text": "This is a sentence with a errror in it.",
+      "params": { "language": "auto" }
+    },
+    {
+      "file": "fr-forced-on-english.json",
+      "text": "This is a sentence with a errror in it.",
+      "params": { "language": "fr" }
+    },
+    {
+      "file": "emoji-offsets.json",
+      "text": "Bonjour 👍🙂🎉 à Noël, il a manger une pomme.",
+      "params": { "language": "fr" }
+    },
+    {
+      "file": "error-403-auth.txt",
+      "status": 403,
+      "text": "Bonjour",
+      "params": {
+        "language": "fr",
+        "username": "quelquun@example.org",
+        "apiKey": "cle-invalide"
+      }
+    },
+    {
+      "file": "error-400-preferred-variants.txt",
+      "status": 400,
+      "text": "Bonjour",
+      "params": { "language": "fr", "preferredVariants": "fr-FR" }
+    }
+  ]
+}
