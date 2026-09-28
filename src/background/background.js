@@ -61,6 +61,14 @@ const states = new Map();
 function showState(state, tabId) {
     states.set(tabId, state);
 
+    // A state carrying a count is one a pass has just produced, which is where
+    // the event page learns the mistakes of that message may have changed. The
+    // states that carry none say a pass is coming and nothing about the text, and
+    // one of those goes out on every keystroke.
+    if (typeof state.errors === "number") {
+        pushMistakes(tabId);
+    }
+
     const { icon, text, background, textColor, title, label } = buttonFor(state);
     return Promise.all([
         browser.composeAction.setBadgeText({ tabId, text }),
@@ -396,12 +404,21 @@ async function closePanel(tabId) {
  */
 browser.compose.onBeforeSend.addListener((tab) => closePanel(tab.id));
 
+/** The URL every window listing the errors opens at, whichever message it lists. */
+const LIST_URL = browser.runtime.getURL(PAGE);
+
 /**
- * Opens the window that lists the errors of one compose window.
+ * Opens the window that lists the errors of one compose window, and closes the
+ * one that was open.
  *
  * A window of its own, because the button's own popup is exclusive with its menu
  * and closes on the first click in the message body, which is exactly what
  * correcting one error after another is made of.
+ *
+ * One at a time, opening again being asked to mean closing and reopening, and the
+ * one already there is found rather than remembered: a window carries its own URL
+ * and answers for itself, where a window id kept here would be lost with this page
+ * and leave a second window behind.
  *
  * The compose window travels in the URL, since that is the one place it survives
  * this page unloading, and `src/list/mistakes.js` says under which name.
@@ -414,7 +431,9 @@ browser.compose.onBeforeSend.addListener((tab) => closePanel(tab.id));
  * answered by a window rule of the desktop's own, not by this extension.
  */
 async function openList(tabId) {
-    const url = new URL(browser.runtime.getURL(PAGE));
+    await closeLists();
+
+    const url = new URL(LIST_URL);
     url.searchParams.set(TAB_PARAMETER, String(tabId));
 
     await browser.windows.create({
@@ -426,11 +445,43 @@ async function openList(tabId) {
 }
 
 /**
+ * Closes every window showing our list page.
+ *
+ * `windows.create` opens a popup holding exactly one tab, and the URL of that tab
+ * is what names the window as ours. The extension always holds a host permission
+ * over its own pages (`Extension.sys.mjs`, "An extension always gets permission
+ * to its own url"), so the URL comes back although the manifest asks for no
+ * `tabs` permission, which is the only case the schema's own note is about.
+ */
+async function closeLists() {
+    const windows = await browser.windows.getAll({
+        populate: true,
+        // A narrowing and never the check: what a window shows is what says it is
+        // ours, and `windows.create({type: "popup"})` opens exactly this type.
+        windowTypes: ["popup"],
+    });
+
+    for (const candidate of windows) {
+        if (candidate.tabs?.some((tab) => tab.url?.startsWith(LIST_URL))) {
+            await browser.windows.remove(candidate.id);
+        }
+    }
+}
+
+/**
  * The one place that window is opened from, whichever of the two ways asked for
  * it, so both reach the very same window and a failure is said once.
+ *
+ * One opening after the other, because a held shortcut asks again before the first
+ * has found anything to close, and two openings at once are two windows.
  */
-const showList = (tabId) =>
-    openList(tabId).catch((error) => log("list of errors not opened:", String(error)));
+let opening = Promise.resolve();
+
+const showList = (tabId) => {
+    opening = opening
+        .then(() => openList(tabId))
+        .catch((error) => log("list of errors not opened:", String(error)));
+};
 
 /**
  * The names the manifest gives the two shortcuts, one opening the list and one
@@ -478,6 +529,85 @@ browser.commands.onCommand.addListener((name, tab) => {
         .sendMessage(tab.id, { type: "checkNow" })
         .catch((error) => log("check not asked for:", String(error)));
 });
+
+/**
+ * The window listing the errors, while one is open, and the compose window it
+ * lists.
+ *
+ * A live port and never a pairing remembered on its own: this page is suspended
+ * whenever it falls idle, so anything kept here dies under a window that is still
+ * on screen. A port cannot outlive that memory, because it is torn down with the
+ * page that held it and the window connects again, and it cannot outlive the
+ * window either, which is how its closing is heard with nothing to clean up.
+ *
+ * One entry and not a map, since exactly one such window exists at a time: see
+ * `openList`.
+ */
+let watching = null;
+
+browser.runtime.onConnect.addListener((port) => {
+    const tabId = listedBy(port);
+    if (tabId === null) {
+        log("a port was refused, it comes from no list of errors");
+        return;
+    }
+
+    watching = { tabId, port };
+    port.onDisconnect.addListener(() => {
+        // Its own entry and never whatever is there: a window opened for another
+        // message has taken the place by the time the closing one is heard from.
+        if (watching?.port === port) {
+            watching = null;
+        }
+    });
+});
+
+/**
+ * The compose window a connecting page lists, or null for a port from anywhere
+ * else.
+ *
+ * Read from the URL that page was opened at, which the port carries as its
+ * sender's: the compose window is named there and nowhere else, so the port is
+ * left carrying the updates and never the identity.
+ */
+function listedBy(port) {
+    const url = port.sender?.url;
+    if (typeof url !== "string" || !url.startsWith(LIST_URL)) {
+        return null;
+    }
+    return Number(new URL(url).searchParams.get(TAB_PARAMETER));
+}
+
+/**
+ * Pushes one compose window's errors to the window listing them.
+ *
+ * The answer itself and not a word that something changed, which would cost a
+ * second round trip, and in the very shape `mistakes` answers with, so that window
+ * draws a list it was pushed exactly as it draws one it asked for.
+ *
+ * Silent for a message no window is listing, which is all of them most of the
+ * time.
+ */
+async function pushMistakes(tabId) {
+    const watcher = watching;
+    if (watcher === null || watcher.tabId !== tabId) {
+        return;
+    }
+
+    const answer = await mistakesIn(tabId);
+    try {
+        watcher.port.postMessage(answer);
+    } catch (error) {
+        // The window may have been closed while the compose side was answering,
+        // and a port refuses everything once it is gone.
+        log("the list of errors was not told:", String(error));
+    }
+}
+
+// A compose window that has gone sends no state, so nothing else would ever tell
+// the window listing its errors that the message it stands for is not there any
+// more.
+browser.tabs.onRemoved.addListener((tabId) => pushMistakes(tabId));
 
 /**
  * The errors one compose window holds, for the window that lists them.

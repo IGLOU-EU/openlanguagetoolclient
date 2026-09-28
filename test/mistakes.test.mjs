@@ -1,13 +1,14 @@
 /**
  * The contract of src/list/mistakes.js: what the window that lists the mistakes
  * of a message shows for one of them, where the reader is left once one is
- * corrected, and where the page it is all shown in sits.
+ * corrected and once the message has changed behind them, and where the page it
+ * is all shown in sits.
  *
  * A module with no Thunderbird API and no DOM, so all of it is provable under
  * Node where no window exists. The page itself is left with reading the answer
  * and building the list.
  *
- * Six rules carry it. The extract is the text the mistake sits in, cut around it,
+ * Seven rules carry it. The extract is the text the mistake sits in, cut around it,
  * because a list is read away from the message and a word alone says nothing
  * about where it is. It stops at the separator the compose side puts between two
  * blocks, or the end of one paragraph would be glued to the start of the next and
@@ -17,9 +18,12 @@
  * would touch, which is the span the mistake covers and never what a replacement
  * writes, a deletion included. The place a correction leaves the reader on is the
  * one they were at, bounded by the list that came back, because the mistake that
- * was resolved is gone from it and the next one has taken its place. And nothing
- * here throws: the mistakes arrive as a message from another context, so one that
- * describes nothing costs its own row and never the whole window.
+ * was resolved is gone from it and the next one has taken its place. The place a
+ * list arriving on its own leaves them on is the mistake they were reading and not
+ * the number it was at, since a mistake fixed or made before it moves every
+ * number after it. And nothing here throws: the mistakes arrive as a message from
+ * another context, so one that describes nothing costs its own row and never the
+ * whole window.
  */
 
 import { test } from "node:test";
@@ -34,6 +38,7 @@ import {
     TAB_PARAMETER,
     extractOf,
     placeAfter,
+    placeKept,
 } from "../src/list/mistakes.js";
 import { srcDir } from "./helpers.mjs";
 
@@ -81,6 +86,7 @@ const mistakeOn = (needle, word = needle, replacements = ["corrigé"]) => ({
     text: word,
     message: "Cette phrase demande un participe passé.",
     replacements,
+    ruleId: "PARTICIPE_PASSE",
     label: "Grammaire",
     color: "#d35400",
     family: "grammar",
@@ -268,6 +274,91 @@ const EVERY_NO_ONE = [
     ["a place that is null", null, 5],
 ];
 
+/**
+ * The list the reader is walking, as the compose window answers one: four
+ * mistakes of the message, in the order of the text.
+ *
+ * Four different spans, so each one is its own mistake under the only comparison
+ * that carries across a change of the message: the rule and the text covered.
+ */
+const READING = [
+    mistakeOn("aller a la", "aller"),
+    mistakeOn(" a ", "a"),
+    mistakeOn("merci ", "merci "),
+    mistakeOn("bientot"),
+];
+
+/** One mistake of the same message that the list being read does not hold. */
+const APPEARED = mistakeOn("Hier");
+
+/** The list with the mistake the reader was on taken out of it. */
+const WITHOUT_THE_THIRD = [READING[0], READING[1], READING[3]];
+
+/**
+ * Where a list arriving on its own leaves the reader, each case written as they
+ * live it: the list they were reading, the place they stood at, the list that
+ * arrived, and the place that leaves them on.
+ *
+ * The place expected is spelled out and never computed, because an expectation
+ * worked out the way the module works it out would prove nothing about either.
+ */
+const EVERY_KEPT = [
+    ["a list that did not change", READING, 2, READING, 2],
+    [
+        "a mistake fixed by hand before the one being read",
+        READING, 2, [READING[0], READING[2], READING[3]], 1,
+    ],
+    [
+        "a mistake fixed by hand after the one being read",
+        READING, 1, WITHOUT_THE_THIRD, 1,
+    ],
+    [
+        "a mistake made by hand before the one being read",
+        READING, 2, [APPEARED, ...READING], 3,
+    ],
+    [
+        "a mistake made by hand after the one being read",
+        READING, 1, [...READING, APPEARED], 1,
+    ],
+    [
+        "the mistake being read fixed by hand",
+        READING, 2, WITHOUT_THE_THIRD, 2,
+    ],
+    [
+        "the last mistake being read fixed by hand",
+        READING, 3, [READING[0], READING[1], READING[2]], 2,
+    ],
+    [
+        "a list that shrank past the place and left the mistake behind",
+        READING, 3, [READING[0]], 0,
+    ],
+    ["a list that arrived empty", READING, 2, [], null],
+    [
+        "a list arriving for a reader who was standing nowhere",
+        [], null, READING, 0,
+    ],
+];
+
+/**
+ * Everything the reader could be standing on that names no mistake, and every
+ * list that is no list.
+ *
+ * The page reads what another context reported, so a standing mistake that
+ * describes nothing is the ordinary case of a window that has just opened or of a
+ * message that has moved on, and the place then falls back on the number.
+ */
+const EVERY_NOTHING_STOOD_ON = [
+    ["a mistake that is null", null, READING, 2, 2],
+    ["a mistake that is undefined", undefined, READING, 2, 2],
+    ["a mistake that is a number", 7, READING, 2, 2],
+    ["a mistake that is a string", "aller", READING, 2, 2],
+    ["a mistake carrying no text", { ruleId: "PARTICIPE_PASSE" }, READING, 2, 2],
+    ["a mistake whose text is no text", { text: 42 }, READING, 2, 2],
+    ["a list that is no array", READING[2], "aller", 2, null],
+    ["a list that is null", READING[2], null, 2, null],
+    ["a list that is undefined", READING[2], undefined, 2, null],
+];
+
 for (const [label, mistake, expected] of EVERY_EXTRACT) {
     test(`the extract of a mistake ${label}`, () => {
         assert.deepEqual(extractOf(BODY, mistake), expected);
@@ -419,6 +510,72 @@ test("resolving one mistake never sends the reader backwards past the next", () 
 
         assert.equal(left, Math.min(resolved, seven - 2), `resolved ${resolved}`);
     }
+});
+
+for (const [label, reading, was, arrived, expected] of EVERY_KEPT) {
+    test(`the place kept across ${label}`, () => {
+        assert.equal(placeKept(reading[was], arrived, was), expected);
+    });
+}
+
+for (const [label, standing, arrived, was, expected] of EVERY_NOTHING_STOOD_ON) {
+    test(`the place falls back on the number for ${label}`, () => {
+        assert.doesNotThrow(() => placeKept(standing, arrived, was));
+        assert.equal(placeKept(standing, arrived, was), expected);
+    });
+}
+
+test("a list that came back the same leaves the reader on the very mistake they were on", () => {
+    // The list arrives again after every pass, most of them changing nothing at
+    // all, and a reader moved by one of those would be moved for nothing.
+    for (const [was, mistake] of READING.entries()) {
+        const kept = placeKept(mistake, READING, was);
+
+        assert.equal(kept, was, `${was}: ${mistake.text}`);
+    }
+});
+
+test("a mistake found again where it moved to, and not where its number was", () => {
+    // The whole reason the mistake and not the number is followed: every number
+    // after a mistake fixed by hand has moved by one, and a reader held at theirs
+    // would be aiming at the mistake that took its place.
+    const arrived = [READING[1], READING[2], READING[3]];
+
+    assert.equal(placeKept(READING[3], arrived, 3), 2);
+    assert.equal(placeKept(READING[2], arrived, 2), 1);
+});
+
+test("a word flagged twice by one rule keeps the reader on the nearer of the two", () => {
+    // Two rows carrying the same rule and the same text are the same mistake made
+    // twice, and nothing tells them apart. The nearer one is where the reader was
+    // aiming, and a tie goes to the earlier, the list being read from the top.
+    const twice = [READING[2], READING[0], READING[2]];
+
+    assert.equal(placeKept(READING[2], twice, 2), 2);
+    assert.equal(placeKept(READING[2], twice, 0), 0);
+    assert.equal(placeKept(READING[2], twice, 1), 0);
+});
+
+test("a mistake whose rule differs is another mistake, whatever text it covers", () => {
+    // The rule is half of what says a mistake is the same one, so the same word
+    // flagged by another rule is another row, with another explanation and other
+    // replacements behind it.
+    const renamed = { ...READING[2], ruleId: "FRENCH_WHITESPACE" };
+
+    assert.equal(placeKept(READING[2], [READING[0], renamed], 2), 1);
+    assert.equal(placeKept(READING[2], [READING[0], renamed, READING[2]], 2), 2);
+});
+
+test("placeKept leaves the list and the mistake it was given alone", () => {
+    // The page keeps both to draw the rows and to write the corrections with, so
+    // a placement that edited either would correct something else than what the
+    // server reported.
+    const arrived = [...READING];
+    const before = structuredClone({ standing: READING[2], arrived });
+
+    placeKept(READING[2], arrived, 2);
+
+    assert.deepEqual({ standing: READING[2], arrived }, before);
 });
 
 test("the page the window opens is a file the extension ships", () => {

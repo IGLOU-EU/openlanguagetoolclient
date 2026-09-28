@@ -14,7 +14,7 @@
 // is, how much of the text a correction would touch, the whole explanation and a
 // button per replacement.
 
-import { TAB_PARAMETER, extractOf, placeAfter } from "./mistakes.js";
+import { TAB_PARAMETER, extractOf, placeAfter, placeKept } from "./mistakes.js";
 
 const status = document.getElementById("status");
 const view = document.getElementById("view");
@@ -76,19 +76,31 @@ const summaryOf = (count) =>
     count === 0 ? "No mistake." : `${count} mistake${count === 1 ? "" : "s"}.`;
 
 /**
- * Asks the compose window for the mistakes it holds and draws them.
+ * Asks the compose window for the mistakes it holds.
  *
- * The list is what the message holds at the moment it is asked for. Nothing
- * watches the message afterwards, so a mistake made or fixed by hand in the
- * compose window shows here only when a correction applied from this window has
- * made the list be asked for again.
+ * Asked at load and again whenever the channel has been down, never on a rhythm:
+ * every other list arrives on its own, pushed by the event page when the message
+ * changed. See `listen`.
  *
- * @param {number} wanted The place the reader is to be left on, bounded by what
- *        came back.
+ * @param {number} standing The place to hold the reader at, which is the one they
+ *        are on everywhere but at load.
  */
-async function refresh(wanted) {
-    const answer = await browser.runtime.sendMessage({ type: "mistakes", tabId: composeTab });
+async function ask(standing) {
+    update(await browser.runtime.sendMessage({ type: "mistakes", tabId: composeTab }), standing);
+}
 
+/**
+ * Draws one answer from the compose window, wherever it came from.
+ *
+ * The one drawing path, so a list the reader asked for and a list that arrived on
+ * its own can never read differently. The keyboard is the one thing the two do
+ * not share: whoever asked moves it, and nothing else does.
+ *
+ * @param {object} answer The compose window's mistakes, as `mistakes` answers.
+ * @param {number} standing The place whose mistake the reader is held on, and the
+ *        place they are left at when that mistake is gone from the answer.
+ */
+function update(answer, standing) {
     if (answer?.gone === true) {
         forget();
         report(GONE);
@@ -102,11 +114,12 @@ async function refresh(wanted) {
         return;
     }
 
+    const was = shown.mistakes[standing] ?? null;
     shown = {
         body: textOf(answer?.body),
         mistakes: Array.isArray(answer?.mistakes) ? answer.mistakes : [],
     };
-    place = placeAfter(wanted, shown.mistakes.length);
+    place = placeKept(was, shown.mistakes, standing);
     report(summaryOf(shown.mistakes.length));
     draw();
 }
@@ -123,8 +136,18 @@ function forget() {
  *
  * Built again rather than edited, because a correction moves every offset after it
  * and what is on screen would have to be taught about each one.
+ *
+ * Rebuilding takes away how far the reader had scrolled and whatever held the
+ * keyboard, and a list arriving on its own is not their doing, so both are put
+ * back. The keyboard only if it was in the list already: a reader who is typing in
+ * their message has it elsewhere, and this window has no business taking it. It
+ * goes back on the row and never on the replacement that held it, because the
+ * server may have answered this mistake with other replacements, and the button in
+ * that place would write something nobody chose.
  */
 function draw() {
+    const scrolled = view.scrollTop;
+    const held = view.contains(document.activeElement);
     view.textContent = "";
     rows = [];
 
@@ -136,6 +159,10 @@ function draw() {
 
     drawRows();
     mark();
+    view.scrollTop = scrolled;
+    if (held) {
+        focusPlace();
+    }
 }
 
 /** Every mistake in one column, each row carrying its own corrections. */
@@ -370,8 +397,9 @@ async function apply(at, mistake, value) {
     // The write moves every mistake after it in the paragraph, so the list is
     // asked for again rather than left describing the text as it was. The place
     // the corrected one held is where the next one now is, and the keyboard goes
-    // there, so the next correction is one key away.
-    await refresh(at);
+    // there, so the next correction is one key away. This is the one update the
+    // reader did ask for, hence the only one that moves the keyboard.
+    await ask(at);
     focusPlace();
 }
 
@@ -383,13 +411,40 @@ function paragraph(className, content) {
 }
 
 /**
+ * Opens the channel the event page pushes every later list down.
+ *
+ * A port and not a question asked over and over: the event page learns from the
+ * compose window when the message changed, and pushing it here costs nothing
+ * while nothing is being written. The port is also the one thing that says this
+ * window is open, which is why the event page holds no pairing of its own: it is
+ * suspended whenever it falls idle, so anything remembered there would die under
+ * a window still on screen, while a port and the memory of it die together.
+ *
+ * Which message this window lists is not on the port: the URL says that, and it
+ * is the one place that survives the event page unloading.
+ */
+function listen() {
+    const port = browser.runtime.connect();
+    port.onMessage.addListener((answer) => update(answer, place));
+    // That suspension takes the event page's end of the port with it, and a window
+    // left holding a dead port would go quietly out of date for the rest of its
+    // life. Connecting again is also asking again, since whatever changed while
+    // there was no channel was pushed to nobody.
+    port.onDisconnect.addListener(() => {
+        listen();
+        ask(place).catch((error) => report(`The mistakes could not be read: ${error}`));
+    });
+}
+
+/**
  * The mistakes, from the top.
  *
  * A window that cannot say what it holds has to say that much: it is the one thing
  * standing between the reader and a list that is silently empty.
  */
 async function start() {
-    await refresh(0);
+    listen();
+    await ask(0);
     // The window was opened to walk this list, and nothing else in it wants the
     // keyboard first.
     focusPlace();

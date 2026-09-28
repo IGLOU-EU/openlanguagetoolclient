@@ -2,7 +2,8 @@
  * What the window listing the mistakes of a message needs that is neither DOM
  * nor Thunderbird: where its page sits, how it is told which message it was
  * opened for, what one mistake is shown as, which place in the list the reader is
- * left on, and where the window itself opens.
+ * left on after a correction and after a change made behind their back, and where
+ * the window itself opens.
  *
  * No Thunderbird API and no DOM, like the event page's own modules, so the
  * extract, its count, the placement and the step from one mistake to the next are
@@ -142,4 +143,50 @@ export function placeAfter(resolved, remaining) {
         return 0;
     }
     return Math.min(resolved, remaining - 1);
+}
+
+/**
+ * The place in the list the reader is left on after a list that arrived on its
+ * own, the message having changed while they were reading it.
+ *
+ * A mistake fixed or made by hand before the one they are aiming at moves every
+ * place after it, so a reader held at the same number would find another mistake
+ * under the row they were about to click. They are held on the mistake itself,
+ * found again wherever it has moved to, and left where `placeAfter` puts them
+ * only once it is gone from the list, which is the same answer as for a mistake
+ * they corrected themselves.
+ *
+ * Two mistakes are the same one when the rule that reported them and the text
+ * they cover are the same. The offsets are deliberately out of that comparison:
+ * a change anywhere before them moves them all, and that is the very case this
+ * exists for. One word flagged twice by one rule therefore answers twice, and
+ * the answer nearest where the reader stood wins.
+ *
+ * @param {?object} standing The mistake the reader was on, as it was shown to
+ *        them, or nothing when there was none to be on.
+ * @param {object[]} mistakes The list that just arrived.
+ * @param {number} was The place they stood at.
+ * @returns {number|null} Null when the list that arrived has nothing to stand
+ *          on. It never throws, for the reason `extractOf` does not: the list
+ *          comes as a message from another context.
+ */
+export function placeKept(standing, mistakes, was) {
+    const list = Array.isArray(mistakes) ? mistakes : [];
+    const fallback = placeAfter(was, list.length);
+    if (fallback === null || typeof standing?.text !== "string") {
+        return fallback;
+    }
+
+    let found = null;
+    for (const [at, mistake] of list.entries()) {
+        if (mistake?.text !== standing.text || mistake?.ruleId !== standing.ruleId) {
+            continue;
+        }
+        // Measured from the place the reader would land on anyway, which is where
+        // they stood whenever the list still reaches that far.
+        if (found === null || Math.abs(at - fallback) < Math.abs(found - fallback)) {
+            found = at;
+        }
+    }
+    return found ?? fallback;
 }
