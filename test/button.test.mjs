@@ -1,5 +1,5 @@
 /**
- * The contract of src/button.js: what the compose window's action button says
+ * The contract of src/background/button.js: what the compose window's action button says
  * about a check, read from the state the compose script sends.
  *
  * The button says three things at once. The icon gives the state of the check,
@@ -27,26 +27,23 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
-import { BADGE_BACKGROUND, BADGE_TEXT, BUSY_MARK, STATE_ICONS, buttonFor } from "../src/button.js";
+import { BADGE_BACKGROUND, BADGE_TEXT, BUSY_MARK, STATE_ICONS, buttonFor } from "../src/background/button.js";
+import { srcDir } from "./helpers.mjs";
 import { RING_COLOR, ringIcon } from "./icons.mjs";
-
-/** Where the packaged icons sit, which is the directory the extension is built from. */
-const srcDir = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 
 /** The keys a button carries, sorted the way Object.keys gives them back. */
 const BUTTON_KEYS = ["background", "icon", "label", "text", "textColor", "title"];
 
 /** The logo, which is the wavy line alone and the one icon drawn by hand. */
-const LOGO = "icon.svg";
+const LOGO = "icons/icon.svg";
 
-const BUSY = "icon-busy.svg";
-const ALERT = "icon-alert.svg";
+const BUSY = "icons/icon-busy.svg";
+const ALERT = "icons/icon-alert.svg";
 
 /**
- * How many characters the badge holds, which is what the width `src/button.js`
+ * How many characters the badge holds, which is what the width `src/background/button.js`
  * measures comes to.
  *
  * Held for every shape, because the platform refuses nothing here: a text too
@@ -55,7 +52,7 @@ const ALERT = "icon-alert.svg";
 const BADGE_WIDTH = 2;
 
 /**
- * What the badge shows past the last count that fits, U+221E CAP_MARK.
+ * What the badge shows past the last count that fits, U+002B PLUS SIGN.
  *
  * One glyph, where `99+` is three and does not fit. It claims no number at all,
  * which a badge reading `99` for a hundred and twenty one mistakes would, and

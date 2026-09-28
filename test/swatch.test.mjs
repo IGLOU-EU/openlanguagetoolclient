@@ -1,6 +1,7 @@
 /**
- * The contract of src/swatch.js: the colour that says what kind of mistake it is,
- * and the icon an entry of the toolbar button's menu carries to claim its column.
+ * The contract of src/background/swatch.js: the colour that says what kind of
+ * mistake it is, and the icon an entry of the toolbar button's menu carries to
+ * claim its column.
  *
  * A plain module, with no Thunderbird API and no DOM, so the whole mapping is
  * provable under Node where no menu exists.
@@ -22,17 +23,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { crc32, inflateSync } from "node:zlib";
 
 import {
     SWATCHES, blankIcon, choiceFor, familyOf, paintFor, swatchFor,
-} from "../src/swatch.js";
+} from "../src/background/swatch.js";
+import { srcDir } from "./helpers.mjs";
 import { GLYPH_SIZE, swatchPixels } from "./icons.mjs";
-
-/** Where the packaged icons sit, which is the directory the extension is built from. */
-const srcDir = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 
 /** The eight bytes every PNG file opens with. */
 const SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -46,7 +44,7 @@ const COLOR_TYPE_RGBA = 6;
 /**
  * The five colours as they are declared.
  *
- * Spelled out here so that a change of mind is decided in src/swatch.js and
+ * Spelled out here so that a change of mind is decided in src/background/swatch.js and
  * read back, and so that the test never computes what it is meant to check.
  */
 const HEX = {
@@ -224,7 +222,7 @@ function pixelsOf(name) {
             0,
             `${name} row ${row} carries PNG filter ${image.raster[at]}, which this `
             + "decoder does not undo: write the file with unfiltered rows, as the "
-            + "header of src/swatch.js says a packaged icon is written",
+            + "header of src/background/swatch.js says a packaged icon is written",
         );
 
         for (let column = 0; column < image.width; column += 1) {
@@ -344,7 +342,7 @@ test("a swatch is the file named after the colour, and not a URL of any kind", (
     for (const [family, color] of Object.entries(SWATCHES)) {
         const path = swatchFor(color);
 
-        assert.equal(path, `swatch-${color.slice(1)}.png`, family);
+        assert.equal(path, `icons/swatch-${color.slice(1)}.png`, family);
         assert.ok(!path.includes(":"), path);
         assert.ok(!path.startsWith("/"), path);
         assert.ok(!path.startsWith("."), path);
@@ -470,7 +468,7 @@ test("the fallback is the other family's colour, not black and not white", () =>
 });
 
 test("the two functions compose into a packaged file for any issue type at all", () => {
-    // How src/menu.js uses them, so the pair is proved to work together and not
+    // How src/background/menu.js uses them, so the pair is proved to work together and not
     // only apart.
     for (const value of ["misspelling", "WHITESPACE", "uncategorized", "", null, 42, {}]) {
         const path = swatchFor(SWATCHES[familyOf(value)]);
@@ -492,7 +490,7 @@ test("the two functions compose into a packaged file for any issue type at all",
  * The five words the panel shows.
  *
  * The one place they are spelled out, so a change of wording is decided in
- * src/swatch.js and read back here. They are deliberately not the family keys:
+ * src/background/swatch.js and read back here. They are deliberately not the family keys:
  * `misspelling` and `typographical` belong to the localisation quality
  * vocabulary the server draws on, and the panel is read by whoever is writing
  * the message.
@@ -854,9 +852,10 @@ const SHOWN = [
 
 test("the two signs are the open box and the empty set, and no letter", () => {
     // The one test that pins them, so a change of mind is decided in
-    // src/swatch.js and read back here. A look-alike would pass the eye and fail
-    // the reader: the point of both is that they are not words of any language,
-    // and that neither can be mistaken for the replacement itself.
+    // src/background/swatch.js and read back here. A look-alike would pass the
+    // eye and fail the reader: the point of both is that they are not words of
+    // any language, and that neither can be mistaken for the replacement
+    // itself.
     assert.equal(OPEN_BOX.codePointAt(0), 0x2423);
     assert.equal(EMPTY_SET.codePointAt(0), 0x2205);
     assert.equal(OPEN_BOX.length, 1);

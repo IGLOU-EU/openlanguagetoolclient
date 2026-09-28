@@ -1,6 +1,9 @@
 {
   "type": "module",
   "private": true,
+  "engines": {
+    "node": ">=20.15.0"
+  },
   "scripts": {
     "test": "node --test test/*.test.mjs"
   }

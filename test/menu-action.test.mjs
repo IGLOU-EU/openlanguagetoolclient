@@ -1,5 +1,5 @@
 /**
- * The contract of `actionMenuItems` in src/menu.js: what the compose window's
+ * The contract of `actionMenuItems` in src/background/menu.js: what the compose window's
  * toolbar button offers when its menu opens.
  *
  * A module of the event page side, with no Thunderbird API and no DOM, so the
@@ -31,11 +31,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
-import { MESSAGE_LIMIT, actionMenuItems, menuItemsFor, orderFor } from "../src/menu.js";
-import { SWATCHES, blankIcon } from "../src/swatch.js";
+import { MESSAGE_LIMIT, actionMenuItems, menuItemsFor, orderFor } from "../src/background/menu.js";
+import { SWATCHES, blankIcon } from "../src/background/swatch.js";
+import { srcDir } from "./helpers.mjs";
 
 const LANGUAGE_ID = "olc-language";
 const AUTO_ID = "olc-language-auto";
@@ -92,10 +92,10 @@ const NOTE_IDS = GROUPS.map(([, , note]) => note);
  * type and draws its own mark in the column instead.
  */
 const GLYPHS = [
-    [LANGUAGE_ID, "glyph-globe.svg"],
-    [REDETECT_ID, "glyph-magnifier.svg"],
-    [RECHECK_ID, "glyph-arrows.svg"],
-    [OPTIONS_ID, "glyph-gear.svg"],
+    [LANGUAGE_ID, "icons/glyph-globe.svg"],
+    [REDETECT_ID, "icons/glyph-magnifier.svg"],
+    [RECHECK_ID, "icons/glyph-arrows.svg"],
+    [OPTIONS_ID, "icons/glyph-gear.svg"],
 ];
 
 /**
@@ -109,7 +109,7 @@ const GLYPHS = [
 const NO_ORDER = [LANGUAGE_ID, OPTIONS_ID, ...RULE_IDS, ...NOTE_IDS];
 
 /**
- * The order types the compose script answers (`src/compose.js`, the
+ * The order types the compose script answers (`src/compose/compose.js`, the
  * `browser.runtime.onMessage` listener), and no fifth.
  */
 const ORDER_TYPES = ["language", "picky", "checking", "recheck"];
@@ -133,9 +133,6 @@ const NOTE_KEYS = ["checked", "enabled", "id", "title", "type"];
 
 /** The four types a `browser.menus` item may be, and no fifth. */
 const TYPES = ["normal", "radio", "checkbox", "separator"];
-
-/** Where the packaged icons sit, which is the directory the extension is built from. */
-const srcDir = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 
 /**
  * A language list shaped as `languages()` returns one.
@@ -284,7 +281,7 @@ test("the captions are the ones the menu shows", () => {
 test("a line explaining a mode says what the mode is for, and fits the label", () => {
     // The platform crops a label at a width no extension can read, so a line
     // longer than that loses its end with nothing to say it was there. The limit
-    // is the one src/menu.js shortens an explanation to, because it is the same
+    // is the one src/background/menu.js shortens an explanation to, because it is the same
     // crop on the same kind of entry.
     const items = actionMenuItems(stateOf());
 
@@ -310,7 +307,7 @@ test("a real looking list: the language parent and its radios, then the actions"
             title: "Language",
             type: "normal",
             checked: false,
-            icons: { 16: "glyph-globe.svg" },
+            icons: { 16: "icons/glyph-globe.svg" },
         },
         {
             id: AUTO_ID,
@@ -352,21 +349,21 @@ test("a real looking list: the language parent and its radios, then the actions"
             title: "Detect the language again",
             type: "normal",
             checked: false,
-            icons: { 16: "glyph-magnifier.svg" },
+            icons: { 16: "icons/glyph-magnifier.svg" },
         },
         {
             id: RECHECK_ID,
             title: "Check the whole message again",
             type: "normal",
             checked: false,
-            icons: { 16: "glyph-arrows.svg" },
+            icons: { 16: "icons/glyph-arrows.svg" },
         },
         {
             id: OPTIONS_ID,
             title: "Settings",
             type: "normal",
             checked: false,
-            icons: { 16: "glyph-gear.svg" },
+            icons: { 16: "icons/glyph-gear.svg" },
         },
         {
             id: PICKY_RULE_ID,
@@ -634,7 +631,10 @@ test("every icon either menu names is a file packaged with the extension", () =>
     // one the extension ships.
     const menus = [
         actionMenuItems(stateOf({ picky: true })),
-        ...ISSUE_TYPES.map((issueType) => menuItemsFor({ ...MATCH, issueType })),
+        // The body's menu offers each item beside the value its click writes, and
+        // the icon is on the item, which is the half the platform is handed.
+        ...ISSUE_TYPES.map((issueType) =>
+            menuItemsFor({ ...MATCH, issueType }).map((entry) => entry.item)),
     ];
 
     const named = new Set();

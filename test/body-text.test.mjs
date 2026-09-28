@@ -1,5 +1,5 @@
 /**
- * The contract of src/body-text.js: what leaves for the server is the text the
+ * The contract of src/compose/body-text.js: what leaves for the server is the text the
  * user wrote, and the segments still point back to the nodes it came from.
  *
  * The quotes and the signature are the bulk of a reply, and none of it is the

@@ -17,14 +17,13 @@
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import vm from "node:vm";
+
+import { srcDir } from "./helpers.mjs";
 
 const ELEMENT_NODE = 1;
 const TEXT_NODE = 3;
-
-const srcDir = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 
 /**
  * Evaluates one compose script in a context of its own and hands back what it
@@ -68,15 +67,15 @@ function loadComposeScript(file, name, provided = {}) {
     };
 }
 
-const bodyText = loadComposeScript("body-text.js", "olcBody", {
+const bodyText = loadComposeScript("compose/body-text.js", "olcBody", {
     Node: { ELEMENT_NODE, TEXT_NODE },
 });
 
-/** The API the compose script publishes, as `src/body-text.js` declares it. */
+/** The API the compose script publishes, as `src/compose/body-text.js` declares it. */
 export const olcBody = bodyText.api;
 
 /**
- * What `src/body-text.js` added to the global object, `olcBody` included.
+ * What `src/compose/body-text.js` added to the global object, `olcBody` included.
  *
  * Thunderbird gives every compose script of one extension the same global, so
  * anything else published there collides with `compose.js`.
@@ -84,13 +83,13 @@ export const olcBody = bodyText.api;
 export const publishedGlobals = bodyText.publishedGlobals;
 
 /**
- * Loads `src/scheduler.js` and hands back its API and its published names.
+ * Loads `src/compose/scheduler.js` and hands back its API and its published names.
  *
  * On demand rather than at import time, because the text tests share this file
  * and need nothing of the scheduler: a scheduler that is missing or that throws
  * on load must fail its own tests and no others.
  */
-export const loadScheduler = () => loadComposeScript("scheduler.js", "olcSchedule", {
+export const loadScheduler = () => loadComposeScript("compose/scheduler.js", "olcSchedule", {
     // What the page holds, minus the timers: those are injected into
     // createScheduler so the test owns the clock, and leaving them out of the
     // realm is what proves no real one is reached for behind its back.
@@ -99,14 +98,14 @@ export const loadScheduler = () => loadComposeScript("scheduler.js", "olcSchedul
 });
 
 /**
- * Loads `src/panel.js` and hands back its API and its published names.
+ * Loads `src/compose/panel.js` and hands back its API and its published names.
  *
  * On demand for the same reason as the scheduler, and with no `document` in the
  * realm on purpose: the panel's placement is arithmetic on four boxes of
  * numbers, so a script that reached for a DOM to work out where it goes would
  * fail here instead of only in a window nobody can unit test.
  */
-export const loadPanel = () => loadComposeScript("panel.js", "olcPanel", { console });
+export const loadPanel = () => loadComposeScript("compose/panel.js", "olcPanel", { console });
 
 /** Fake text node. */
 export function text(value) {

@@ -33,7 +33,7 @@ export const BUSY_MARK = "···";
 const ALERT_MARK = "!";
 
 /** The logo, the wavy line alone, which is a message with nothing to say. */
-const LOGO = "icon.svg";
+const LOGO = "icons/icon.svg";
 
 /**
  * The file that shows each of the two states that are not a count.
@@ -45,8 +45,8 @@ const LOGO = "icon.svg";
  * `test/icons.mjs` draws both of them from these very pairs.
  */
 export const STATE_ICONS = {
-    [ALERT_MARK]: "icon-alert.svg",
-    [BUSY_MARK]: "icon-busy.svg",
+    [ALERT_MARK]: "icons/icon-alert.svg",
+    [BUSY_MARK]: "icons/icon-busy.svg",
 };
 
 /**

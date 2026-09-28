@@ -1,5 +1,5 @@
 /**
- * The contract of the way back, in src/body-text.js: `offsetOf`, which turns
+ * The contract of the way back, in src/compose/body-text.js: `offsetOf`, which turns
  * the place the pointer landed on into an offset in the flattened text, and
  * `matchAt`, which names the error that offset falls inside.
  *

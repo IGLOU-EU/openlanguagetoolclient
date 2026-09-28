@@ -20,7 +20,7 @@ let level = null;
 // The highlight names on screen. A family the last pass drew and this one does
 // not has to be taken out by name, and this is the only place that list exists:
 // the compose side holds no copy of the families, which are declared in
-// src/swatch.js and travel on each match.
+// src/background/swatch.js and travel on each match.
 let drawn = new Set();
 
 // The family of a mistake the event page named nothing usable for. That field
@@ -248,7 +248,7 @@ function draw(byFamily) {
  * Which of compose.css's five colours one match is drawn in.
  *
  * Read from the match and never worked out here: the families are grouped from
- * the server's issue types in src/swatch.js, which this side cannot reach.
+ * the server's issue types in src/background/swatch.js, which this side cannot reach.
  */
 const familyIn = (match) =>
     typeof match.family === "string" && match.family !== "" ? match.family : FALLBACK_FAMILY;
@@ -501,7 +501,7 @@ function setChecking(value) {
         sendState({ busy: false, errors: 0, failed: false });
         return;
     }
-    runPassNow();
+    scheduler?.runNow();
 }
 
 /**
@@ -511,45 +511,18 @@ function setChecking(value) {
  */
 function recheck() {
     cacheStale = true;
-    runPassNow();
+    scheduler?.runNow();
 }
 
-// Built only once the event page has said how long a wait to give it. No delay
-// is spelled out here to stand in meanwhile: it would be a second declaration of
-// a value that belongs to the settings, and it would buy nothing, since an event
-// page that cannot answer the settings cannot answer a "check" either and no
-// pass would reach a server whatever wait this side picked.
+// Built only once the event page has said how long a wait to give it, hence the
+// optional call at every place a pass is asked for. No delay is spelled out here
+// to stand in meanwhile: it would be a second declaration of a value that belongs
+// to the settings, and it would buy nothing, since an event page that cannot
+// answer the settings cannot answer a "check" either and no pass would reach a
+// server whatever wait this side picked.
 let scheduler = null;
 
-// What was asked for before the scheduler existed, "request" or "now", null when
-// nothing was. Keys move while the answer is on its way, so the wait is handled
-// in the two wrappers below rather than at each place a pass is asked for.
-let wantedPass = null;
-
-/** Asks for a pass once the writing has stopped. */
-function requestPass() {
-    if (scheduler === null) {
-        // A pass already wanted at once stays at once: it was asked for by a
-        // choice the user made, and typing after it must not push it behind a
-        // pause.
-        if (wantedPass === null) {
-            wantedPass = "request";
-        }
-        return;
-    }
-    scheduler.request();
-}
-
-/** Asks for a pass without waiting for the writing to stop. */
-function runPassNow() {
-    if (scheduler === null) {
-        wantedPass = "now";
-        return;
-    }
-    scheduler.runNow();
-}
-
-/** Puts the checking on the rhythm the settings ask for, and honours the wait. */
+/** Puts the checking on the rhythm the settings ask for. */
 function startScheduling({ underline, idleSeconds }) {
     level = underline;
     scheduler = createScheduler({
@@ -563,14 +536,6 @@ function startScheduling({ underline, idleSeconds }) {
         setTimer: setTimeout,
         clearTimer: clearTimeout,
     });
-
-    const wanted = wantedPass;
-    wantedPass = null;
-    if (wanted === "now") {
-        scheduler.runNow();
-    } else if (wanted === "request") {
-        scheduler.request();
-    }
 }
 
 // One event for typing, pasting and undoing alike.
@@ -578,17 +543,23 @@ document.addEventListener("input", () => {
     if (!checking) {
         return;
     }
+    if (scheduler === null) {
+        // Nothing was scheduled, so nothing is coming, and saying otherwise
+        // would leave the button waiting for a pass that will never run. Only a
+        // key struck before the event page answered gets here.
+        return;
+    }
     // The check is still a pause away, and the button has to say so at once or
     // the extension reads as dead for that whole pause.
     sendState({ busy: true });
-    requestPass();
+    scheduler.request();
 }, true);
 
 // Ctrl+Alt+S stays as the way to get a check without waiting for the pause.
 document.addEventListener("keydown", (event) => {
     if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "s") {
         event.preventDefault();
-        runPassNow();
+        scheduler?.runNow();
     }
 }, true);
 

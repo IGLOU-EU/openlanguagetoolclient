@@ -6,15 +6,16 @@
 // the rules on it are declared once, and src/languagetool.js, so the language
 // menus are filled by the same client that runs the checks.
 
-import { languages } from "./languagetool.js";
+import { languages } from "../languagetool.js";
 import {
+    DETECT_LANGUAGE,
     MAX_IDLE_SECONDS,
     MIN_IDLE_SECONDS,
     normalize,
     originOf,
     problemsWith,
     UNDERLINES,
-} from "./settings.js";
+} from "../settings.js";
 
 const form = document.getElementById("settings");
 const fields = {
@@ -127,7 +128,7 @@ function fillVariants(selected) {
  * at all, so the form must not be able to express it.
  */
 function applyVariantRule() {
-    const imposed = fields.language.value !== "auto";
+    const imposed = fields.language.value !== DETECT_LANGUAGE;
     fields.variants.disabled = imposed;
     variantsNote.hidden = !imposed;
 }

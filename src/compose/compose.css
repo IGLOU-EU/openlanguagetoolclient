@@ -1,14 +1,15 @@
 /* The names must stay in step with two lists: the families of mistake
-   src/swatch.js declares and the levels src/settings.js allows. compose.js
-   registers "olc-" followed by the family of the mistake, a hyphen and the
-   stored level, and that naming is the only link between the highlight registry
-   and these rules. A pair with no rule here underlines nothing at all, so all
-   fifteen of them carry one.
+   src/background/swatch.js declares and the levels src/settings.js allows.
+   compose.js registers "olc-" followed by the family of the mistake, a hyphen
+   and the stored level, and that naming is the only link between the highlight
+   registry and these rules. A pair with no rule here underlines nothing at all,
+   so all fifteen of them carry one.
 
-   The colours are the ones src/swatch.js gives the menu icons, so that a kind of
-   mistake is the same colour wherever it is shown. They are written a second
-   time here because a stylesheet injected into the page being written cannot
-   read a module, and test/underline.test.mjs is what keeps the two copies equal.
+   The colours are the ones src/background/swatch.js gives the menu icons, so
+   that a kind of mistake is the same colour wherever it is shown. They are
+   written a second time here because a stylesheet injected into the page being
+   written cannot read a module, and test/underline.test.mjs is what keeps the
+   two copies equal.
 
    A misspelling is red, which was refused while every mistake shared a single
    colour: red is the native spell checker's, and a red line would have been

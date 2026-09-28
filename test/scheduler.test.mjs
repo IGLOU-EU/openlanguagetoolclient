@@ -1,5 +1,5 @@
 /**
- * The contract of src/scheduler.js: a check runs once the writing has stopped,
+ * The contract of src/compose/scheduler.js: a check runs once the writing has stopped,
  * one at a time, and never before the one in flight has settled.
  *
  * No test here waits. The clock is a pair of fakes the test drives by hand, and

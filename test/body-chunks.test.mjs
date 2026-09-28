@@ -1,5 +1,5 @@
 /**
- * The contract of the chunking in src/body-text.js: while the language is not
+ * The contract of the chunking in src/compose/body-text.js: while the language is not
  * known, the whole written text goes out at once, cut into pieces the server
  * accepts, and one answer is filed back paragraph by paragraph.
  *

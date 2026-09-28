@@ -8,10 +8,9 @@
  *
  * @typedef {object} ServerConfig
  * @property {string}   url                  API root, for example "https://lt.example/v2".
- * @property {string}   [language]           Language code, or "auto" for detection.
+ * @property {string}   [language]           Language code, or DETECT_LANGUAGE.
  * @property {string}   [motherTongue]
  * @property {string[]} [preferredVariants]
- * @property {string[]} [disabledRules]
  * @property {boolean}  [picky]              Picky mode, sends level=picky.
  * @property {number}   [timeoutMs]          Timeout in milliseconds, 10,000 by default.
  *                                           Exceeding it is reported as an unreachable
@@ -54,6 +53,8 @@
  *                                            requests.
  * @property {Failure|null} failure
  */
+
+import { DETECT_LANGUAGE, TRAILING_SLASHES } from "./settings.js";
 
 /** Length kept for `detail`: the server may answer at great length. */
 const DETAIL_LIMIT = 200;
@@ -101,7 +102,7 @@ export async function check(text, config) {
                 `HTTP ${response.status} ${excerpt(body)}`,
             );
         }
-        return normalize(body);
+        return normalizeCheck(body);
     } catch (error) {
         return failed("unreachable", networkDetail(error, timeoutMs));
     }
@@ -150,12 +151,12 @@ function timeoutOf(config) {
 }
 
 function endpointOf(config, path) {
-    return `${String(config.url).replace(/\/+$/, "")}/${path}`;
+    return `${String(config.url).replace(TRAILING_SLASHES, "")}/${path}`;
 }
 
 function requestBody(text, config) {
     const params = new URLSearchParams();
-    const language = config.language || "auto";
+    const language = config.language || DETECT_LANGUAGE;
 
     params.set("text", text);
     params.set("language", language);
@@ -165,11 +166,8 @@ function requestBody(text, config) {
     }
     // The server rejects the whole request with a 400 if preferredVariants
     // comes with an explicit language.
-    if (language === "auto" && config.preferredVariants?.length) {
+    if (language === DETECT_LANGUAGE && config.preferredVariants?.length) {
         params.set("preferredVariants", config.preferredVariants.join(","));
-    }
-    if (config.disabledRules?.length) {
-        params.set("disabledRules", config.disabledRules.join(","));
     }
     if (config.picky) {
         params.set("level", "picky");
@@ -193,7 +191,7 @@ function kindForStatus(status) {
     return "malformed";
 }
 
-function normalize(body) {
+function normalizeCheck(body) {
     let parsed;
     try {
         parsed = JSON.parse(body);

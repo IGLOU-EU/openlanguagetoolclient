@@ -17,6 +17,9 @@
             <p class="field">
                 <label for="language">Language</label>
                 <select id="language">
+                    <!-- The value is DETECT_LANGUAGE, which src/settings.js declares and
+                         every script reads from there. Markup imports nothing, so this is
+                         the one copy of it, and the module is the original. -->
                     <option value="auto">Detect automatically</option>
                 </select>
             </p>

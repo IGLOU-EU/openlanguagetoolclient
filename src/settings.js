@@ -6,13 +6,25 @@
  *
  * @typedef {object} Settings
  * @property {string}   url               API root, with no trailing slash, "" when unset.
- * @property {string}   language          Language code, or "auto" for detection.
+ * @property {string}   language          Language code, or DETECT_LANGUAGE.
  * @property {string}   motherTongue      Empty when none is set.
- * @property {string[]} preferredVariants Empty unless the language is "auto".
+ * @property {string[]} preferredVariants Empty unless the language is DETECT_LANGUAGE.
  * @property {boolean}  picky             Picky mode.
  * @property {string}   underline         One of UNDERLINES, the thickness of the mark.
  * @property {number}   idleSeconds       Quiet typing a check waits for, in seconds.
  */
+
+/**
+ * The language code that leaves the language to the server.
+ *
+ * The server's own word for "detect it yourself", and a named thing because it
+ * is what decides whether preferred variants may be sent at all: the server
+ * answers HTTP 400 to variants carried by a request that also imposes a
+ * language, so this value is the only one that lets them through. `normalize`
+ * applies that rule, and every side that reads a language has to recognise the
+ * value it turns on.
+ */
+export const DETECT_LANGUAGE = "auto";
 
 /**
  * The thicknesses the underline can take, from the thinnest to the thickest.
@@ -31,10 +43,22 @@ export const UNDERLINES = ["thin", "normal", "thick"];
 export const MIN_IDLE_SECONDS = 0.5;
 export const MAX_IDLE_SECONDS = 60;
 
+/**
+ * The trailing slashes an address is kept without.
+ *
+ * Declared here because `normalize` is what promises an address in that shape,
+ * and exported because `src/languagetool.js` cuts them off again from whatever
+ * it is handed: a configuration built by hand never went through `normalize`,
+ * and one slash too many sends every request to an address the server may
+ * answer with a 404. One declaration, so the two cuts can never disagree on
+ * what a trailing slash is.
+ */
+export const TRAILING_SLASHES = /\/+$/;
+
 /** What an extension nobody has configured yet reads. */
 export const DEFAULTS = {
     url: "",
-    language: "auto",
+    language: DETECT_LANGUAGE,
     motherTongue: "",
     preferredVariants: [],
     picky: false,
@@ -65,13 +89,13 @@ export const DEFAULTS = {
 export function normalize(raw) {
     const language = textOf(raw?.language) || DEFAULTS.language;
     return {
-        url: textOf(raw?.url).replace(/\/+$/, ""),
+        url: textOf(raw?.url).replace(TRAILING_SLASHES, ""),
         language,
         motherTongue: textOf(raw?.motherTongue),
         // The server answers HTTP 400 to preferred variants sent together with
         // an explicit language, and the check then returns nothing at all, so
         // that pair must not be representable.
-        preferredVariants: language === "auto" ? listOf(raw?.preferredVariants) : [],
+        preferredVariants: language === DETECT_LANGUAGE ? listOf(raw?.preferredVariants) : [],
         picky: raw?.picky === true,
         underline: levelOf(raw?.underline),
         idleSeconds: secondsOf(raw?.idleSeconds),

@@ -1,5 +1,5 @@
 /**
- * The contract of the block cache in src/body-text.js: the text is cut into
+ * The contract of the block cache in src/compose/body-text.js: the text is cut into
  * blocks, each block's result is remembered under its own text, and only the
  * blocks never seen before are worth a request.
  *

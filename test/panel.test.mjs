@@ -1,14 +1,15 @@
 /**
- * The contract of src/panel.js: where the panel lands next to the word it
+ * The contract of src/compose/panel.js: where the panel lands next to the word it
  * explains.
  *
  * The panel itself is a shadow root inside a compose window, so none of it can
  * be built under Node. Its placement can, and it is the part that decides
  * whether the explanation is read or half off the screen. The realm the script
  * is loaded in holds no `document` so that the arithmetic stays arithmetic,
- * which leaves one thing the panel says that no call here can make it say:
- * which family a mistake belongs to. That one is read as text at the end of
- * this file, out of the very script Thunderbird loads.
+ * which leaves two things the panel says that no call here can make it say:
+ * which family a mistake belongs to, and how many corrections it offers. Both
+ * are read as text at the end of this file, out of the very script Thunderbird
+ * loads.
  *
  * Two rules carry the rest. The panel hangs under the word unless it would fall
  * out of the window, in which case it goes over it, and a panel with room on
@@ -22,10 +23,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
+import { MAX_REPLACEMENTS } from "../src/background/menu.js";
 import { loadPanel } from "./compose-helpers.mjs";
+import { srcDir } from "./helpers.mjs";
 
 const { api: olcPanel, publishedGlobals } = loadPanel();
 const { placement } = olcPanel;
@@ -165,10 +167,10 @@ test("the API is published on globalThis, and nothing else is", () => {
     assert.deepEqual(publishedGlobals, ["olcPanel"]);
 });
 
-test("the panel offers placement, show, hide and isOpen, and nothing else", () => {
-    assert.deepEqual(Object.keys(olcPanel).sort(), ["hide", "isOpen", "placement", "show"]);
+test("the panel offers placement, show and hide, and nothing else", () => {
+    assert.deepEqual(Object.keys(olcPanel).sort(), ["hide", "placement", "show"]);
 
-    for (const name of ["placement", "show", "hide", "isOpen"]) {
+    for (const name of ["placement", "show", "hide"]) {
         assert.equal(typeof olcPanel[name], "function", name);
     }
 });
@@ -495,11 +497,9 @@ test("the word's left edge is kept wherever the panel fits on it", () => {
 // What the panel says about the family a mistake belongs to: a band of that
 // family's colour, five pixels wide, down the edge of the card. It is built
 // with a DOM this realm does not hold, so what carries it is read as text out
-// of the script itself, the way test/underline.test.mjs reads src/compose.css.
+// of the script itself, the way test/underline.test.mjs reads src/compose/compose.css.
 
-const srcDir = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
-
-const source = readFileSync(join(srcDir, "panel.js"), "utf8");
+const source = readFileSync(join(srcDir, "compose/panel.js"), "utf8");
 
 /** The panel's stylesheet, which lives in the script: a shadow root inherits none. */
 const stylesheet = /const STYLE = `([\s\S]*?)`;/.exec(source)?.[1] ?? "";
@@ -578,4 +578,20 @@ test("nothing of the dot is left, neither the rule nor the element", () => {
     // and a rule left behind styles an element nothing builds any more.
     assert.equal(bodyFor(".dot"), "");
     assert.ok(!/"dot"/.test(source), "a class of that name is still built");
+});
+
+// How many corrections the panel offers, which is the cap src/background/menu.js declares
+// for the context menu. A compose script imports nothing, so the number is
+// spelled on both sides, and this is what stands in for the declaration they
+// cannot share.
+
+/** The cap as the panel carries it. */
+const cap = /const MAX_REPLACEMENTS = (\d+);/.exec(source)?.[1];
+
+test("the panel and the context menu cap the corrections at the same number", () => {
+    // The two are doors to one set of corrections, so a mistake answerable six
+    // ways from the panel and five from the menu is the same mistake offering
+    // two different sets according to the way it was opened.
+    assert.notEqual(cap, undefined, "no MAX_REPLACEMENTS declared in src/compose/panel.js");
+    assert.equal(Number(cap), MAX_REPLACEMENTS);
 });

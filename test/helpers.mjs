@@ -11,7 +11,19 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const fixturesDir = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
+const testDir = dirname(fileURLToPath(import.meta.url));
+const fixturesDir = join(testDir, "fixtures");
+
+/**
+ * Where the files the extension is packaged from sit.
+ *
+ * Declared here because the tests that open a packaged icon, draw one again or
+ * read a script as text all need that same directory, and a path spelled out in
+ * each of them is one the next move of a file leaves right in some and wrong in
+ * the others.
+ */
+export const srcDir = join(testDir, "..", "src");
+
 /** Single source of truth for the texts, the parameters and the server. */
 export const manifest = JSON.parse(readFileSync(join(fixturesDir, "cases.json"), "utf8"));
 

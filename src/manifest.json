@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Underlines the errors reported by a LanguageTool server in the compose window.",
   "icons": {
-    "16": "icon.svg"
+    "16": "icons/icon.svg"
   },
   "browser_specific_settings": {
     "gecko": {
@@ -24,29 +24,29 @@
   ],
   "background": {
     "scripts": [
-      "background.js"
+      "background/background.js"
     ],
     "type": "module"
   },
   "compose_action": {
     "default_title": "LanguageTool",
-    "default_icon": "icon.svg",
+    "default_icon": "icons/icon.svg",
     "type": "menu"
   },
   "compose_scripts": [
     {
       "css": [
-        "compose.css"
+        "compose/compose.css"
       ],
       "js": [
-        "body-text.js",
-        "scheduler.js",
-        "panel.js",
-        "compose.js"
+        "compose/body-text.js",
+        "compose/scheduler.js",
+        "compose/panel.js",
+        "compose/compose.js"
       ]
     }
   ],
   "options_ui": {
-    "page": "options.html"
+    "page": "options/options.html"
   }
 }

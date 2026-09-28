@@ -33,7 +33,7 @@
 /**
  * One colour per family of mistake.
  *
- * The five are the very colours `src/compose.css` underlines the text with,
+ * The five are the very colours `src/compose/compose.css` underlines the text with,
  * which it declares for itself: a stylesheet injected into the page being
  * written cannot read a module, and there is no build step to derive one side
  * from the other. `test/underline.test.mjs` holds the two copies equal instead,
@@ -174,7 +174,7 @@ const HEX = /^#[0-9a-f]{6}$/i;
 export function swatchFor(color) {
     const known = typeof color === "string" && HEX.test(color);
     const usable = known ? color.toLowerCase() : SWATCHES.other;
-    return `swatch-${usable.slice(1)}.png`;
+    return `icons/swatch-${usable.slice(1)}.png`;
 }
 
 /**
@@ -190,5 +190,5 @@ export function swatchFor(color) {
  *          through it.
  */
 export function blankIcon() {
-    return "blank.png";
+    return "icons/blank.png";
 }

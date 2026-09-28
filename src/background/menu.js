@@ -8,6 +8,7 @@
  * what a click orders.
  */
 
+import { DETECT_LANGUAGE } from "../settings.js";
 import { blankIcon, choiceFor, familyOf, SWATCHES, swatchFor } from "./swatch.js";
 
 /**
@@ -54,29 +55,30 @@ const ELLIPSIS = "…";
  *        value that is no object at all, yields no entry: it arrives as a message
  *        from another context, and a menu that throws would take the whole right
  *        click with it.
- * @param {number} limit How many replacements at most, `MAX_REPLACEMENTS` when
- *        missing or unusable.
- * @returns {{id: string, title: string, enabled: boolean, icons: object}[]}
- *          Empty when there is nothing to show. Only an enabled entry stands for
- *          a replacement, and the explanation is the one entry that refuses a
- *          click.
+ * @returns {{item: {id: string, title: string, enabled: boolean, icons: object},
+ *          value?: string}[]} Empty when there is nothing to show. `item` is what
+ *          `menus.create` takes, and the string a click writes travels beside it
+ *          instead of in it, since the schema refuses a property it does not know.
+ *          Only a replacement carries one, the explanation being the entry that
+ *          refuses the click.
  */
-export function menuItemsFor(match, limit) {
-    const cap = Number.isFinite(limit) && limit >= 0 ? limit : MAX_REPLACEMENTS;
+export function menuItemsFor(match) {
     const replacements = Array.isArray(match?.replacements) ? match.replacements : [];
 
-    const items = [];
+    const entries = [];
 
     const message = match?.message;
     if (typeof message === "string" && message !== "") {
-        items.push({
-            id: "olc-message",
-            title: shortened(message),
-            enabled: false,
-            // The one line the colour is said on, which is the line that says
-            // what is objected to. Repeated down every entry it says nothing
-            // more than it says once.
-            icons: { 16: swatchFor(SWATCHES[familyOf(match?.issueType)]) },
+        entries.push({
+            item: {
+                id: "olc-message",
+                title: shortened(message),
+                enabled: false,
+                // The one line the colour is said on, which is the line that says
+                // what is objected to. Repeated down every entry it says nothing
+                // more than it says once.
+                icons: { 16: swatchFor(SWATCHES[familyOf(match?.issueType)]) },
+            },
         });
     }
 
@@ -84,28 +86,35 @@ export function menuItemsFor(match, limit) {
     // the ids stay distinct and contiguous whatever the server sent.
     let rank = 0;
     for (const value of replacements) {
-        if (rank >= cap) {
+        if (rank >= MAX_REPLACEMENTS) {
             break;
         }
         const choice = choiceFor(value, match?.text);
         if (choice === null) {
             continue;
         }
-        items.push({
-            id: `olc-${rank}`,
-            // The shown form and not the replacement itself, or a deletion is an
-            // entry with no text at all. Its strikethrough is lost here, since
-            // an extension cannot style a menu item.
-            title: choice.text,
-            enabled: true,
-            // An icon that draws nothing, for the reason `iconic` below is given
-            // one.
-            icons: { 16: blankIcon() },
+        entries.push({
+            item: {
+                id: `olc-${rank}`,
+                // The shown form and not the replacement itself, or a deletion is
+                // an entry with no text at all. Its strikethrough is lost here,
+                // since an extension cannot style a menu item.
+                title: choice.text,
+                enabled: true,
+                // An icon that draws nothing, for the reason `iconic` below is
+                // given one.
+                icons: { 16: blankIcon() },
+            },
+            // What the click writes, carried by the entry that offers it rather
+            // than looked up again from its rank: the shown form is another string
+            // for a deletion, and the server's list has to be filtered a second
+            // time before a rank means anything in it.
+            value: choice.value,
         });
         rank += 1;
     }
 
-    return items;
+    return entries;
 }
 
 function shortened(message) {
@@ -118,7 +127,7 @@ function shortened(message) {
 /**
  * The glyph each ordinary entry of the button's menu shows.
  *
- * Packaged files, for the reason `src/swatch.js` gives for the swatches: the
+ * Packaged files, for the reason `src/background/swatch.js` gives for the swatches: the
  * compose window takes no other form of icon. They are named here and not there
  * because a glyph says what one entry of one menu does, where a swatch says what
  * family a mistake belongs to.
@@ -132,10 +141,30 @@ function shortened(message) {
  * A globe for the language and not a flag: a white flag reads as surrender, and
  * any national flag picks one of the languages the menu offers over the others.
  */
-const GLOBE = "glyph-globe.svg";
-const MAGNIFIER = "glyph-magnifier.svg";
-const ARROWS = "glyph-arrows.svg";
-const GEAR = "glyph-gear.svg";
+const GLOBE = "icons/glyph-globe.svg";
+const MAGNIFIER = "icons/glyph-magnifier.svg";
+const ARROWS = "icons/glyph-arrows.svg";
+const GEAR = "icons/glyph-gear.svg";
+
+/**
+ * The submenu that holds the languages, and the stem of its children's ids.
+ *
+ * Named because the stem is written by `actionMenuItems` and read back by
+ * `orderFor`, which slices the code off an id to know which language was asked
+ * for. Two literals that have to agree, with nothing making them, is how a menu
+ * entry ends up answering nothing at all.
+ */
+const LANGUAGE_ID = "olc-language";
+const LANGUAGE_STEM = `${LANGUAGE_ID}-`;
+
+/**
+ * The id the entry that leaves the language to the server carries.
+ *
+ * Built from the code that entry stands for, like every other language entry's
+ * id, so the one it occupies is exactly the one a language of that code would
+ * ask for, which is the clash `actionMenuItems` guards against.
+ */
+const DETECTION_ID = `${LANGUAGE_STEM}${DETECT_LANGUAGE}`;
 
 /**
  * Turns the state of one compose window into the entries of the button's menu.
@@ -156,13 +185,13 @@ const GEAR = "glyph-gear.svg";
 export function actionMenuItems(state) {
     const language = textOf(state?.language);
     const items = [
-        iconic("olc-language", "Language", "normal", false, GLOBE),
-        languageItem("olc-language-auto", "Detect automatically", language === ""),
+        iconic(LANGUAGE_ID, "Language", "normal", false, GLOBE),
+        languageItem(DETECTION_ID, "Detect automatically", language === ""),
     ];
 
-    // The detection entry already holds the id a language called "auto" would
-    // ask for, and two entries cannot share one.
-    const taken = new Set(["auto"]);
+    // The detection entry already holds the id a language of that very code
+    // would ask for, and two entries cannot share one.
+    const taken = new Set([DETECT_LANGUAGE]);
     for (const entry of listOf(state?.languages)) {
         const name = textOf(entry?.name);
         const longCode = textOf(entry?.longCode);
@@ -172,7 +201,7 @@ export function actionMenuItems(state) {
             continue;
         }
         taken.add(longCode);
-        items.push(languageItem(`olc-language-${longCode}`, name, longCode === language));
+        items.push(languageItem(`${LANGUAGE_STEM}${longCode}`, name, longCode === language));
     }
 
     // A language named by the server with enough confidence is carried by every
@@ -222,11 +251,11 @@ export function actionMenuItems(state) {
 export function orderFor(info) {
     // Detecting again is what the radio already marked orders, so there is
     // nothing new to order and nothing new to answer.
-    if (info.menuItemId === "olc-language-auto" || info.menuItemId === "olc-redetect") {
+    if (info.menuItemId === DETECTION_ID || info.menuItemId === "olc-redetect") {
         return { type: "language", language: null };
     }
-    if (info.menuItemId.startsWith("olc-language-")) {
-        return { type: "language", language: info.menuItemId.slice("olc-language-".length) };
+    if (info.menuItemId.startsWith(LANGUAGE_STEM)) {
+        return { type: "language", language: info.menuItemId.slice(LANGUAGE_STEM.length) };
     }
     if (info.menuItemId === "olc-picky") {
         return { type: "picky", picky: info.checked === true };
@@ -288,7 +317,7 @@ const description = (id, title) => ({ ...item(id, title, "normal", false), enabl
 /** Every child of the menu is a language, and radio because one is in force. */
 const languageItem = (id, title, checked) => ({
     ...item(id, title, "radio", checked),
-    parentId: "olc-language",
+    parentId: LANGUAGE_ID,
 });
 
 /** Anything that is not a name or a code is neither. */

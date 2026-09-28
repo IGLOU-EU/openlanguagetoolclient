@@ -18,7 +18,7 @@ Thanks for the interest in the project. This is a free LanguageTool client for T
 
 ## Dev environment
 
-You need Node, recent enough for `node:test` and the global `fetch`, and nothing else: there is nothing to install.
+You need Node and nothing else: there is nothing to install. The version floor is the `engines` field of `package.json`.
 
 ```bash
 npm test      # the unit suite, replays captured server answers
@@ -33,13 +33,13 @@ npm test      # the unit suite, replays captured server answers
 - **A test proves a contract**, so it covers the failure modes too: the hostile response, the unreachable server, the invalid configuration, the boundaries, not only the path that works.
 - **Fixtures are real captures.** Everything under `test/fixtures/` except `cases.json` and `capture.mjs` was written by `capture.mjs` from a real LanguageTool server. Never edit a fixture by hand: an invented response proves nothing. Change `cases.json`, the only home of the server URL, the texts and the parameters, then regenerate. The script's header says how.
 - **Live tests stay off.** `test/live.test.mjs` reaches a real server and is skipped unless `LT_LIVE=1` is set. Its header gives the exact invocation.
-- `npm test`, or `node --test test/*.test.mjs`, must pass before any commit. If something was failing before your change, say so, and never silently disable a test.
+- `npm test` must pass before any commit, and the command it stands for lives in `package.json`. If something was failing before your change, say so, and never silently disable a test.
 
 ## Code conventions
 
 - Everything is written in English, `README.fr.md` excepted: it is the French twin of `README.md`, which stays authoritative. French text found elsewhere is a leftover to translate, not a convention (`AGENTS.md` § English everywhere in the repo).
 - A comment explains the **why**, the constraint or the reason, never how the code works. For a bug fix, a short pointer is enough.
-- The architecture boundaries bind you as they bind an agent: `AGENTS.md` § Don't change the architecture without asking. The two that bite first: nothing is shared between `src/compose.js` and `src/background.js` (a common file kills the compose script), and a `Range` is never kept between two checks.
+- The architecture boundaries bind you as they bind an agent: `AGENTS.md` § Don't change the architecture without asking. The two that bite first: nothing is shared between `src/compose/compose.js` and `src/background/background.js` (a common file kills the compose script), and a `Range` is never kept between two checks.
 
 ## Commits
 

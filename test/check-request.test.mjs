@@ -106,28 +106,6 @@ test("an empty preferredVariants adds no parameter", async (t) => {
     assert.equal(calls[0].params.has("preferredVariants"), false);
 });
 
-test("disabledRules goes as a comma-separated list", async (t) => {
-    const calls = stubFetch(t, ok());
-
-    await check("Bonjour.", config({
-        language: "fr",
-        disabledRules: ["FR_SPELLING_RULE", "DOUBLES_ESPACES"],
-    }));
-
-    assert.equal(
-        calls[0].params.get("disabledRules"),
-        "FR_SPELLING_RULE,DOUBLES_ESPACES",
-    );
-});
-
-test("an empty disabledRules adds no parameter", async (t) => {
-    const calls = stubFetch(t, ok());
-
-    await check("Bonjour.", config({ language: "fr", disabledRules: [] }));
-
-    assert.equal(calls[0].params.has("disabledRules"), false);
-});
-
 test("picky sends level=picky", async (t) => {
     const calls = stubFetch(t, ok());
 

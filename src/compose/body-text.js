@@ -318,14 +318,11 @@
      */
     function matchesForBlocks(blocks, cache, fallback) {
         const matches = [];
-        // Asked for a get rather than checked against Map: the argument is
-        // optional, so anything unable to answer counts as not being there.
-        const second = typeof fallback?.get === "function" ? fallback : null;
 
         for (const block of blocks) {
             const known = cache.has(block.text)
                 ? cache.get(block.text)
-                : second?.get(block.text);
+                : fallback?.get(block.text);
             for (const match of known ?? []) {
                 matches.push({ ...match, offset: match.offset + block.start });
             }

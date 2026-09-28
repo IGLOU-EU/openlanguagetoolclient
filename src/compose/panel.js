@@ -40,9 +40,9 @@
     // panel drifting away from what it explains.
     const MARGIN = 6;
 
-    // The same cap as the context menu's, which `src/menu.js` declares as
+    // The same cap as the context menu's, which `src/background/menu.js` declares as
     // MAX_REPLACEMENTS. The value is written twice because a compose script can
-    // import nothing, the way `src/compose.css` carries its own copy of the
+    // import nothing, the way `src/compose/compose.css` carries its own copy of the
     // underline colour. LanguageTool orders its replacements by likelihood, so
     // what is cut is what was least likely anyway.
     const MAX_REPLACEMENTS = 5;
@@ -194,9 +194,6 @@ button.struck {
             top: Math.max(0, placed),
         };
     }
-
-    /** Whether the panel is open. */
-    const isOpen = () => host !== null;
 
     const dismiss = () => hide();
 
@@ -364,5 +361,5 @@ button.struck {
     /** Anything that is not a text is none. */
     const textOf = (value) => (typeof value === "string" ? value : "");
 
-    globalThis.olcPanel = { placement, show, hide, isOpen };
+    globalThis.olcPanel = { placement, show, hide };
 })();

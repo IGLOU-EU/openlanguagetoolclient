@@ -1,5 +1,5 @@
 /**
- * The contract of correcting in place, in src/body-text.js: `blockAt`, which
+ * The contract of correcting in place, in src/compose/body-text.js: `blockAt`, which
  * names the paragraph an offset falls in, and `afterReplacement`, which moves
  * that paragraph's known matches to where a correction left them.
  *
@@ -368,30 +368,6 @@ test("a block neither map holds contributes nothing", () => {
     // neighbour's match.
     assert.deepEqual(matchesOf(matchesForBlocks(given, cache, guessed)), []);
 });
-
-for (const [label, guessed] of [
-    ["undefined", undefined],
-    ["null", null],
-    ["an object", {}],
-    ["an object shaped like an entry", { "I recieve the file.": [match(2, 7)] }],
-    ["an empty array", []],
-    ["a string", "I recieve the file."],
-    ["a number", 3],
-    ["a set", new Set(["I recieve the file."])],
-]) {
-    test(`a fallback that is no map (${label}) is ignored`, () => {
-        const cache = new Map([["Hello wrold.", [match(6, 5)]]]);
-        const given = [block("Hello wrold.", 0), block("I recieve the file.", 13)];
-
-        // No correction has been applied yet, so the pass runs with nothing in
-        // that slot. It must behave exactly as the two argument call.
-        let found;
-        assert.doesNotThrow(() => {
-            found = matchesForBlocks(given, cache, guessed);
-        });
-        assert.deepEqual(matchesOf(found), [match(6, 5)]);
-    });
-}
 
 test("both maps shift their matches by the block's own start", () => {
     const cache = new Map([["Hello wrold.", [match(6, 5)]]]);

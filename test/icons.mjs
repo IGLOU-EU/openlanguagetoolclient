@@ -1,12 +1,12 @@
 /**
  * The shapes the packaged icons are drawn in, and the files they are written as.
  *
- * Two families come from here. The five `src/swatch-<hex>.png` an entry of the
- * button's menu carries, and the two `src/icon-*.svg` the toolbar button wears
+ * Two families come from here. The five `src/icons/swatch-<hex>.png` an entry of the
+ * button's menu carries, and the two `src/icons/icon-*.svg` the toolbar button wears
  * for a state that is not a count. `test/swatch.test.mjs` and
  * `test/button.test.mjs` draw every one of them again and hold the committed
  * file equal to this shape. So the colours keep their one home in `SWATCHES`,
- * the names keep theirs in `src/button.js`, the shapes keep theirs here, and a
+ * the names keep theirs in `src/background/button.js`, the shapes keep theirs here, and a
  * sixth colour or a third state is drawn from here rather than redrawn by hand
  * into something else. A helper and not a test, like `helpers.mjs` and
  * `compose-helpers.mjs`, and the runner collects `*.test.mjs` alone.
@@ -24,12 +24,12 @@
  */
 
 import { writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { crc32, deflateSync } from "node:zlib";
 
-import { BUSY_MARK, STATE_ICONS } from "../src/button.js";
-import { SWATCHES, swatchFor } from "../src/swatch.js";
+import { BUSY_MARK, STATE_ICONS } from "../src/background/button.js";
+import { SWATCHES, swatchFor } from "../src/background/swatch.js";
+import { srcDir } from "./helpers.mjs";
 
 /** The gutter a menu icon is drawn in, and the size the menu entries declare. */
 export const GLYPH_SIZE = 16;
@@ -49,9 +49,6 @@ const SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 /** Truecolour with an alpha channel, the alpha being the whole of the shape. */
 const COLOR_TYPE_RGBA = 6;
 
-/** Where the packaged icons sit, which is the directory the extension is built from. */
-const srcDir = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
-
 /**
  * The red the rings are drawn in.
  *
@@ -59,7 +56,7 @@ const srcDir = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
  * properties: `currentColor` and `context-fill` would resolve to nothing there.
  * It stays above 3:1 against both the light and the dark toolbar, so one file
  * serves both, and it is the logo's own red so that a check under way reads as
- * the same extension working and not as another state. `src/icon.svg` is hand
+ * the same extension working and not as another state. `src/icons/icon.svg` is hand
  * written and spells the same value, which `test/button.test.mjs` holds the two
  * to.
  */

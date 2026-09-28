@@ -7,9 +7,9 @@
 // line.
 
 import { buttonFor } from "./button.js";
-import { check, languages } from "./languagetool.js";
+import { check, languages } from "../languagetool.js";
 import { actionMenuItems, menuItemsFor, orderFor } from "./menu.js";
-import { normalize } from "./settings.js";
+import { DETECT_LANGUAGE, normalize } from "../settings.js";
 import { choiceFor, familyOf, paintFor } from "./swatch.js";
 
 // The prototype has no other feedback channel than standard output, which
@@ -147,33 +147,28 @@ async function replaceItems(context, items) {
  * (`ext-menus.js`, `getMenuContexts`).
  */
 async function showSuggestions(match) {
-    const items = menuItemsFor(match);
-
-    // An entry's title is what a human reads, and a deletion or a whitespace
-    // reads there as a sign, so what a click writes is taken from the
-    // replacement instead. The entries are in the order the menu kept them, so
-    // an entry stands for the replacement at its own rank.
-    const written = choicesOf(match, match?.text).filter((choice) => choice !== null);
+    const entries = menuItemsFor(match);
 
     pending = new Map();
-    let rank = 0;
-    for (const item of items) {
-        // Only a replacement stands for something to write, and a replacement is
-        // exactly what the menu offers for clicking: the entry explaining the
-        // mistake is the one that refuses the click.
-        if (!item.enabled) {
+    for (const entry of entries) {
+        // Only a replacement is something to write, and it is the entry carrying
+        // the value that is one: the line explaining the mistake has none, and it
+        // is the one entry that refuses the click.
+        if (!("value" in entry)) {
             continue;
         }
-        pending.set(item.id, {
+        pending.set(entry.item.id, {
             type: "apply",
             offset: match.offset,
             length: match.length,
             expected: match.text,
-            value: written[rank].value,
+            value: entry.value,
         });
-        rank += 1;
     }
 
+    // The value stays out of what the platform is handed, because `menus.create`
+    // is checked against the schema and refuses a property it does not know.
+    const items = entries.map((entry) => entry.item);
     await replaceItems("compose_body", items);
     log(items.length, "menu entries for this right click");
 }
@@ -227,7 +222,7 @@ async function showActionMenu(tabId) {
 
 /** The configured language, or nothing when the configuration asks for detection. */
 function configuredLanguage(settings) {
-    return settings.language === "auto" ? null : settings.language;
+    return settings.language === DETECT_LANGUAGE ? null : settings.language;
 }
 
 /**
@@ -293,7 +288,7 @@ async function checkFor(message) {
  *
  * Painted here because the panel showing them lives in a compose script, which
  * can import nothing: without this the colours would be copied into that script,
- * and `src/swatch.js` would stop being the one place they are declared.
+ * and `src/background/swatch.js` would stop being the one place they are declared.
  *
  * @param {object} match A match as `src/languagetool.js` normalizes it.
  * @param {string} sent The very text the match was reported on, which is where
@@ -305,10 +300,10 @@ function painted(match, sent) {
     return {
         ...match,
         ...paintFor(match.issueType, match.categoryName),
-        // The family names the highlight the compose side draws the mark in, and
-        // it is decided here for the same reason as the colour: the issue types
-        // it is read from are grouped in `src/swatch.js`, which that side cannot
-        // reach.
+        // The family names the highlight the compose side draws the mark in,
+        // and it is decided here for the same reason as the colour: the issue
+        // types it is read from are grouped in `src/background/swatch.js`,
+        // which that side cannot reach.
         family: familyOf(match.issueType),
         choices: choicesOf(match, covered),
     };

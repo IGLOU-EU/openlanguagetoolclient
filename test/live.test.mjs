@@ -41,13 +41,12 @@ test("real server: every optional parameter is accepted", { skip }, async () => 
         language: "auto",
         motherTongue: "fr",
         preferredVariants: ["fr-FR", "en-US"],
-        disabledRules: ["FR_SPELLING_RULE"],
         picky: true,
     });
 
+    // Nothing is asserted about what came back: what this proves is that the
+    // server takes the whole set at once instead of answering 400.
     assert.equal(result.failure, null);
-    // disabledRules carries the only rule this text triggers.
-    assert.deepEqual(result.matches, []);
 });
 
 test("real server: a nonexistent host gives unreachable", { skip }, async () => {
