@@ -6,18 +6,18 @@
  * be built under Node. Its placement can, and it is the part that decides
  * whether the explanation is read or half off the screen. The realm the script
  * is loaded in holds no `document` so that the arithmetic stays arithmetic,
- * which leaves two things the panel says that no call here can make it say:
- * which family a mistake belongs to, and how many corrections it offers. Both
- * are read as text at the end of this file, out of the very script Thunderbird
- * loads.
+ * which leaves three things the panel does that no call here can make it do:
+ * measure the window it opens in, name the family a mistake belongs to, and cap
+ * how many corrections it offers. All three are read as text at the end of this
+ * file, out of the very script Thunderbird loads.
  *
  * Two rules carry the rest. The panel hangs under the word unless it would fall
  * out of the window, in which case it goes over it, and a panel with room on
- * neither side is pinned to the top rather than pushed out of reach: a panel
- * nobody can see is the same as no panel, and the click that opened it has
- * already happened. And the numbers come from a `Range` and a client rectangle
- * by way of a click handler, so an argument that makes no sense yields the top
- * left corner instead of throwing under the user's cursor.
+ * neither side keeps the side with more room and lets the edge of the window cut
+ * it off: the word is the line being corrected, and a panel drawn over it hides
+ * the very text it explains. And the numbers come from a `Range` and a client
+ * rectangle by way of a click handler, so an argument that makes no sense yields
+ * the top left corner instead of throwing under the user's cursor.
  */
 
 import { test } from "node:test";
@@ -160,6 +160,49 @@ const said = ([anchor, panel, viewport, margin]) =>
     `word at ${anchor.left},${anchor.top} | panel ${panel.width}x${panel.height}`
     + ` | viewport ${viewport.width}x${viewport.height} | margin ${margin}`;
 
+/**
+ * A window as tall as a message of three lines.
+ *
+ * The shape the panel was reported over the word in: the placement was handed
+ * the height of what had been written instead of the height of the window it
+ * was written in.
+ */
+const SHORT = { width: 800, height: 76 };
+
+/** A compose window too short for the panel on either side of the word. */
+const TIGHT = { width: 800, height: 200 };
+
+/**
+ * Where a word can sit and where the panel lands for it, the reported shape
+ * among them: whatever the window leaves around the word, the word is left
+ * readable.
+ */
+const CLEAR_CASES = [
+    ["a word in the middle, with room either side", word(100, 300), VIEWPORT, 100, 328],
+    ["a word near the bottom of the window", word(100, 560), VIEWPORT, 100, 402],
+    ["a word near the top of the window", word(100, 10), VIEWPORT, 100, 38],
+    ["a word in a message three lines long", word(100, 30), SHORT, 100, 50],
+    ["a word in a window too short for either side", word(100, 90), TIGHT, 100, 110],
+    ["a word against the right edge of the window", word(740, 300), VIEWPORT, 500, 328],
+];
+
+/**
+ * The contract itself: no pixel of the panel is a pixel of the word.
+ *
+ * Touching edges are not an overlap, since the right and bottom edges of a
+ * client rectangle are the first pixel outside it.
+ */
+function assertClear(spot, anchor, panel = PANEL, note = "") {
+    const sideways = spot.left < anchor.right && anchor.left < spot.left + panel.width;
+    const vertical = spot.top < anchor.bottom && anchor.top < spot.top + panel.height;
+
+    assert.ok(
+        !(sideways && vertical),
+        `panel ${panel.width}x${panel.height} at ${spot.left},${spot.top} covers the word`
+        + ` ${anchor.left},${anchor.top} to ${anchor.right},${anchor.bottom}${note}`,
+    );
+}
+
 test("the API is published on globalThis, and nothing else is", () => {
     // Thunderbird gives every compose script of one extension the same global,
     // so a second name would collide with a sibling script and kill it at
@@ -229,34 +272,50 @@ test("the tallest panel that still fits below stays below, and one pixel more fl
     });
 });
 
-test("with room on neither side the panel is pinned to the top of the window", () => {
+test("with room on neither side the panel takes the side with more room", () => {
     // 300 plus the gap plus 400 falls out of the bottom, and 280 less the gap
-    // less 400 falls out of the top, so the whole panel fits nowhere. Below wins
-    // over above by the first rule alone, so what is left is the clamp.
+    // less 400 falls out of the top, so the whole panel fits nowhere. The window
+    // leaves 300 under the word and 280 over it, so the panel hangs from the
+    // word and it is the bottom edge of the window that cuts it.
     const anchor = word(100, 280);
+    const panel = { width: 300, height: 400 };
+    const spot = where(anchor, { panel });
 
-    assert.deepEqual(where(anchor, { panel: { width: 300, height: 400 } }), { left: 100, top: 0 });
+    assert.deepEqual(spot, { left: 100, top: 300 });
+    assert.equal(spot.top, anchor.bottom);
+    assertClear(spot, anchor, panel);
 });
 
-test("a panel taller than the whole window is pinned to the top too", () => {
-    // Which cuts its own bottom off, and shows its beginning. The explanation is
-    // read from the top, and nothing else can be shown at all.
+test("a panel taller than the whole window hangs from the word's bottom edge", () => {
+    // The gap is what is given up first, and the bottom edge of the window cuts
+    // the rest, so what is shown is the beginning of the explanation, which is
+    // where it is read from. A word on the last line of such a window leaves
+    // nothing of the panel on screen, and that is still worth more than a panel
+    // covering the line being corrected.
+    const panel = { width: 100, height: 900 };
+
     for (const anchor of [word(0, 0), word(100, 200), word(700, 580)]) {
-        assert.deepEqual(
-            where(anchor, { panel: { width: 100, height: 900 } }),
-            { left: anchor.left, top: 0 },
-            `word at ${anchor.left},${anchor.top}`,
-        );
+        const spot = where(anchor, { panel });
+        const name = `word at ${anchor.left},${anchor.top}`;
+
+        assert.deepEqual(spot, { left: anchor.left, top: anchor.bottom }, name);
+        assertClear(spot, anchor, panel, ` | ${name}`);
     }
 });
 
-test("a margin larger than the window leaves room on neither side", () => {
-    // Below, the gap alone is past the bottom. Above, it is past the top. The
-    // panel is pinned, and it is still on screen, which is the point of the clamp.
+test("a margin larger than the window keeps the panel on screen, under the word", () => {
+    // Below, the gap alone is past the bottom. Above, it is past the top. What
+    // the window cannot grant is the gap, so the panel comes down to the bottom
+    // edge of the window and no further, on the word's own side of it.
     const anchor = word(100, 200);
 
-    assert.deepEqual(where(anchor, { margin: 1000 }), { left: 100, top: 0 });
-    assert.deepEqual(where(anchor, { margin: VIEWPORT.height }), { left: 100, top: 0 });
+    for (const margin of [1000, VIEWPORT.height]) {
+        const spot = where(anchor, { margin });
+
+        assert.deepEqual(spot, { left: 100, top: 450 }, `margin ${margin}`);
+        assert.equal(spot.top + PANEL.height, VIEWPORT.height, `margin ${margin}`);
+        assertClear(spot, anchor, PANEL, ` | margin ${margin}`);
+    }
 });
 
 test("a word against the top of the window still gets the panel under it", () => {
@@ -327,6 +386,18 @@ test("the margin never moves the panel sideways", () => {
         assert.equal(where(word(740, 200), { margin }).left, 500, `margin ${margin}`);
     }
 });
+
+for (const [name, anchor, viewport, left, top] of CLEAR_CASES) {
+    test(`${name} keeps the panel off the word`, () => {
+        // The word is the text being corrected, and the user is as often
+        // placing a caret in that line or rewriting it by hand as reading the
+        // panel about it. A panel over the word hides the work itself.
+        const spot = where(anchor, { viewport });
+
+        assert.deepEqual(spot, { left, top });
+        assertClear(spot, anchor);
+    });
+}
 
 test("an anchor of no size, which is what an empty range gives, still places the panel", () => {
     // A click can land on a range that collapsed, and the panel still has to
@@ -451,18 +522,22 @@ test("the answer is two finite numbers, neither of them negative, and nothing el
     }
 });
 
-test("the panel is under the word, over it, or at the top, and nowhere else", () => {
+test("the panel is under the word or over it, and never on it", () => {
     // Stated as a property over every shape, where the tests above pin the exact
-    // numbers and the boundary: what this adds is that no other position is ever
-    // invented, whatever the window and the panel are worth.
+    // numbers and the boundary: what this adds is that no window, however short,
+    // and no panel, however tall, ever gets it drawn on the word it explains.
     for (const args of SOUND_CALLS) {
-        const [anchor, panel, viewport, margin] = args;
+        const [anchor, panel] = args;
+
+        assertClear(spotOf(placement(...args)), anchor, panel, ` | ${said(args)}`);
+    }
+});
+
+test("the panel's left edge is the word's, the window's or the corner, and nowhere else", () => {
+    for (const args of SOUND_CALLS) {
+        const [anchor, panel, viewport] = args;
         const spot = spotOf(placement(...args));
 
-        assert.ok(
-            [anchor.bottom + margin, anchor.top - margin - panel.height, 0].includes(spot.top),
-            `top ${spot.top} of ${said(args)}`,
-        );
         assert.ok(
             [anchor.left, viewport.width - panel.width, 0].includes(spot.left),
             `left ${spot.left} of ${said(args)}`,
@@ -494,12 +569,31 @@ test("the word's left edge is kept wherever the panel fits on it", () => {
     }
 });
 
+// What the placement is measured against, which is the one part of it no call
+// here can reach: `show` reads the window, and reading it needs a document this
+// realm holds none of. Read as text out of the script, as everything below is.
+
+const source = readFileSync(join(srcDir, "compose/panel.js"), "utf8");
+
+test("the room the placement is given is the window's, and never the message's", () => {
+    // The compose document is parsed as `about:blank?compose`
+    // (`messengercompose.xhtml`), and the doctype Thunderbird adds is inserted
+    // into it afterwards (`MsgComposeCommands.js`), which leaves the document in
+    // quirks mode. `clientHeight` on the root element answers the height of the
+    // content there, so a message of three lines reads as a window of three
+    // lines and the panel is placed as if it had room nowhere.
+    assert.match(source, /\bwindow\.innerWidth\b/);
+    assert.match(source, /\bwindow\.innerHeight\b/);
+    assert.ok(
+        !/documentElement\.client(Width|Height)/.test(source),
+        "the placement is handed the document's own box, which is the message's height",
+    );
+});
+
 // What the panel says about the family a mistake belongs to: a band of that
 // family's colour, five pixels wide, down the edge of the card. It is built
 // with a DOM this realm does not hold, so what carries it is read as text out
 // of the script itself, the way test/underline.test.mjs reads src/compose/compose.css.
-
-const source = readFileSync(join(srcDir, "compose/panel.js"), "utf8");
 
 /** The panel's stylesheet, which lives in the script: a shadow root inherits none. */
 const stylesheet = /const STYLE = `([\s\S]*?)`;/.exec(source)?.[1] ?? "";

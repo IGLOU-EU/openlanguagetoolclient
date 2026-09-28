@@ -425,5 +425,14 @@ browser.runtime.onInstalled.addListener(({ reason }) => {
 // is only corrected from there.
 showActionMenu().catch((error) => log("menu not built:", String(error)));
 
-serverConfig().then((settings) =>
-    log("event page loaded, server", settings.url === "" ? "not configured" : settings.url));
+serverConfig()
+    .then((settings) =>
+        log("event page loaded, server", settings.url === "" ? "not configured" : settings.url))
+    .catch((error) => log("settings not readable:", String(error)));
+
+// The extension's whole contract is that it reports a failure and never throws,
+// so a promise nobody handled is the one failure that would leave no trace at
+// all. Gecko prints it with no file and no line, which says nothing about where
+// it came from, and this is what names it.
+self.addEventListener("unhandledrejection", (event) =>
+    log("nothing handled this rejection:", String(event.reason)));

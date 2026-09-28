@@ -524,6 +524,9 @@ let scheduler = null;
 
 /** Puts the checking on the rhythm the settings ask for. */
 function startScheduling({ underline, idleSeconds }) {
+    // The one step whose success is otherwise silent, and whose absence is what
+    // says a window is checking nothing.
+    log("settings in force, wait", idleSeconds, "s, underline", underline);
     level = underline;
     scheduler = createScheduler({
         // Without this catch, a failure only surfaces as an "uncaught exception:
@@ -544,9 +547,10 @@ document.addEventListener("input", () => {
         return;
     }
     if (scheduler === null) {
-        // Nothing was scheduled, so nothing is coming, and saying otherwise
-        // would leave the button waiting for a pass that will never run. Only a
-        // key struck before the event page answered gets here.
+        // Nothing is scheduled, so nothing is coming, and the button must not be
+        // told a pass is on its way. Ask again instead of giving up: see
+        // askForSettings.
+        askForSettings();
         return;
     }
     // The check is still a pause away, and the button has to say so at once or
@@ -649,13 +653,35 @@ browser.runtime
     })
     .catch((error) => log("composition mode not known, treated as HTML:", String(error)));
 
-// Asked once: the two settings the drawing and the rhythm are made of live in
-// the event page, which is the only side that reads the storage. Nothing is
-// checked until this answers, and a failure leaves the message alone rather than
-// getting in the way of writing it.
-browser.runtime
-    .sendMessage({ type: "settings" })
-    .then(startScheduling)
-    .catch((error) => log("settings not known, nothing is checked:", String(error)));
+/**
+ * Asks the event page for the two settings the drawing and the rhythm are made
+ * of, it being the only side that reads the storage.
+ *
+ * Asked at load and again on every key struck while nothing is scheduled, never
+ * once and for all. The event page is suspended whenever it falls idle, and a
+ * window that opens while it sleeps, or while it is going to sleep, gets an
+ * answer that never arrives: the promise neither resolves nor rejects. Asking
+ * once left such a window checking nothing for the rest of its life and saying
+ * nothing about it, which is how this was found.
+ */
+function askForSettings() {
+    browser.runtime
+        .sendMessage({ type: "settings" })
+        .then((settings) => {
+            // Two answers can be in flight once a window has been typed into.
+            if (scheduler === null) {
+                startScheduling(settings);
+                scheduler.request();
+            }
+        })
+        .catch((error) => log("settings not known, nothing is checked yet:", String(error)));
+}
+
+askForSettings();
+
+// The same reason as the event page's: a rejection nobody handled is the one
+// failure this extension has no other way of reporting.
+window.addEventListener("unhandledrejection", (event) =>
+    log("nothing handled this rejection:", String(event.reason)));
 
 log("compose script loaded.");

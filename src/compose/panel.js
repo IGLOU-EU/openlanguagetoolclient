@@ -164,7 +164,8 @@ button.struck {
      * @param {{left: number, top: number, right: number, bottom: number}} anchor
      *        The box of the underlined word.
      * @param {{width: number, height: number}} panel
-     * @param {{width: number, height: number}} viewport
+     * @param {{width: number, height: number}} viewport The window's own size,
+     *        which is what bounds a host fixed against it.
      * @param {number} margin Gap between the word and the panel, in pixels.
      * @returns {{left: number, top: number}} `{left: 0, top: 0}` when any number
      *          the placement reads is not one: the panel is worth showing in a
@@ -183,11 +184,34 @@ button.struck {
         const [left, top, bottom, width, height, viewWidth, viewHeight, gap] = read;
 
         // Below the word, which is where the eye already is, and above it only
-        // when below would fall out of the viewport. A word at the very bottom of
-        // a window shorter than the panel leaves neither, and then the top of the
-        // viewport is the only place it can be read at all.
+        // when below would fall out of the viewport. The word itself is never
+        // covered: it is the text being corrected, and the user is as often
+        // placing a caret in that line or rewriting it by hand as reading the
+        // panel about it.
         const under = bottom + gap;
-        const placed = under + height > viewHeight ? top - gap - height : under;
+        const over = top - gap - height;
+        // What the window leaves on either side of the word.
+        const roomUnder = viewHeight - bottom;
+        const roomOver = top;
+
+        let placed;
+        if (under + height <= viewHeight) {
+            placed = under;
+        } else if (over >= 0) {
+            placed = over;
+        } else if (roomOver > roomUnder && height <= roomOver) {
+            // Neither side has room for the panel and its gap. The side with
+            // more room takes it and the gap is what is given up, so the panel
+            // sits against the word rather than over it. Above is worth taking
+            // only while the whole panel fits there: read from its top, a panel
+            // whose top is off the screen says nothing.
+            placed = top - height;
+        } else {
+            // Nothing can show the whole panel. It hangs from the word, as far
+            // down as the window allows and no further, so what the edge of the
+            // window cuts off is the end of the explanation and never the word.
+            placed = Math.min(under, Math.max(bottom, viewHeight - height));
+        }
 
         return {
             left: Math.max(0, Math.min(left, viewWidth - width)),
@@ -230,10 +254,20 @@ button.struck {
         const spot = placement(
             anchor,
             { width: box.width, height: box.height },
-            {
-                width: document.documentElement.clientWidth,
-                height: document.documentElement.clientHeight,
-            },
+            // The window's own size, and never documentElement's box. The
+            // compose document is parsed as `about:blank?compose`
+            // (`messengercompose.xhtml`) and the doctype Thunderbird adds is
+            // inserted into it afterwards (`MsgComposeCommands.js`), which
+            // leaves it in quirks mode, where `clientHeight` on the root element
+            // answers the height of the content. A message of three lines would
+            // read as a window of three lines, and the panel would find room for
+            // itself nowhere.
+            //
+            // The width is taken from the same place for the same reason, and it
+            // costs a scrollbar's worth of room: a panel pushed against the right
+            // edge can sit a few pixels under it. That is the cheaper of the two
+            // mistakes. `clientWidth` looks like the fix and is the trap above.
+            { width: window.innerWidth, height: window.innerHeight },
             MARGIN,
         );
         host.style.left = `${spot.left}px`;

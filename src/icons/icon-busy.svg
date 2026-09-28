@@ -1,18 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16" stroke="#e74c3c">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
     <!-- Drawn by test/icons.mjs, which holds the shape and its reasons. Change
          it there and run it again, never this file by hand. -->
     <style>
-        @keyframes olcBreathe {
-            from { scale: 0.7; opacity: 0.25; }
-            to { scale: 1; opacity: 1; }
+        @keyframes olcTurn {
+            to { transform: rotate(360deg); }
         }
-        #ring {
-            animation: olcBreathe 1s ease-in-out infinite alternate;
-            transform-origin: 50% 50%;
+        #comet {
+            animation: olcTurn 1.4s linear infinite;
+            transform-box: view-box;
+            transform-origin: 8px 8px;
         }
     </style>
-    <g id="ring">
-        <circle cx="8" cy="8" r="7" fill="none" stroke-width="1.5"/>
-        <text x="8" y="8" font-family="sans-serif" font-size="11" font-weight="bold" fill="#e74c3c" stroke="none" text-anchor="middle" dominant-baseline="central">···</text>
+    <circle cx="8" cy="8" r="5.5" fill="none" stroke="#16a085" stroke-width="2.0" opacity=".22"/>
+    <g id="comet">
+        <circle cx="8" cy="8" r="5.5" fill="none" stroke="#16a085" stroke-width="2.0" stroke-linecap="butt" stroke-dasharray="5.53 29.03" stroke-dashoffset="24.00" opacity="0.3"/>
+        <circle cx="8" cy="8" r="5.5" fill="none" stroke="#16a085" stroke-width="2.0" stroke-linecap="butt" stroke-dasharray="5.53 29.03" stroke-dashoffset="29.28" opacity="0.6"/>
+        <circle cx="8" cy="8" r="5.5" fill="none" stroke="#16a085" stroke-width="2.0" stroke-linecap="round" stroke-dasharray="5.53 29.03" stroke-dashoffset="0.00" opacity="1.0"/>
     </g>
 </svg>

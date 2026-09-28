@@ -3,12 +3,12 @@
  * about a check, read from the state the compose script sends.
  *
  * The button says three things at once. The icon gives the state of the check,
- * which is the logo when the pass ran and a ring holding a wait or an alert when
- * it did not. The badge gives the number of mistakes, in two characters and no
- * more, which is what the badge really holds. The label, shown beside the icon
- * because the compose toolbar displays it, gives the language the message is
- * checked in. The title says in words what none of the three has room for, the
- * exact count included.
+ * which is the logo when the pass ran, a turning comet while it runs and a ring
+ * holding an alert when it failed. The badge gives the number of mistakes, in
+ * two characters and no more, which is what the badge really holds. The label,
+ * shown beside the icon because the compose toolbar displays it, gives the
+ * language the message is checked in. The title says in words what none of the
+ * three has room for, the exact count included.
  *
  * The colours are asserted against the exported constants and never against hex
  * strings, so repainting the badge does not rewrite these tests. One test, and
@@ -29,9 +29,9 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { BADGE_BACKGROUND, BADGE_TEXT, BUSY_MARK, STATE_ICONS, buttonFor } from "../src/background/button.js";
+import { ALERT_ICON, BADGE_BACKGROUND, BADGE_TEXT, BUSY_ICON, buttonFor } from "../src/background/button.js";
 import { srcDir } from "./helpers.mjs";
-import { RING_COLOR, ringIcon } from "./icons.mjs";
+import { RING_COLOR, cometIcon, ringIcon } from "./icons.mjs";
 
 /** The keys a button carries, sorted the way Object.keys gives them back. */
 const BUTTON_KEYS = ["background", "icon", "label", "text", "textColor", "title"];
@@ -41,6 +41,9 @@ const LOGO = "icons/icon.svg";
 
 const BUSY = "icons/icon-busy.svg";
 const ALERT = "icons/icon-alert.svg";
+
+/** What the alert's ring holds, which is the one mark left in the family. */
+const ALERT_MARK = "!";
 
 /**
  * How many characters the badge holds, which is what the width `src/background/button.js`
@@ -106,7 +109,7 @@ test("the palette is the one the badge is painted with", () => {
     assert.equal(BADGE_TEXT, "#ffffff");
 });
 
-test("busy: the ring that breathes, and nothing in the badge", () => {
+test("busy: the comet that turns, and nothing in the badge", () => {
     const button = buttonFor({ busy: true, errors: 0, failed: false });
 
     assert.equal(button.icon, BUSY);
@@ -524,30 +527,37 @@ test("every icon a state can put on the button is a file the extension ships", (
 test("the two states that are no count have a file each, and neither is the logo", () => {
     // Two states sharing a file is one of them wearing the other's picture, and
     // the button would then say nothing about the check, which is its whole job.
-    assert.deepEqual(Object.values(STATE_ICONS).sort(), [ALERT, BUSY]);
-    assert.ok(!Object.values(STATE_ICONS).includes(LOGO));
+    assert.equal(BUSY_ICON, BUSY);
+    assert.equal(ALERT_ICON, ALERT);
+    assert.notEqual(BUSY_ICON, ALERT_ICON);
+    assert.ok(![BUSY_ICON, ALERT_ICON].includes(LOGO));
 });
 
-test("a state icon is the shape test/icons.mjs draws for its mark", () => {
+test("each state icon is the shape test/icons.mjs draws for it", () => {
     // Which is what makes the committed file a golden one: the drawing has a
     // home of its own, and a file edited by hand fails here rather than drifting
-    // away from the rest of the family.
-    for (const [mark, file] of Object.entries(STATE_ICONS)) {
-        assert.equal(readFileSync(join(srcDir, file), "utf8"), ringIcon(mark), file);
-    }
+    // away from the rest of the family. Two shapes and no longer one, the wait
+    // having stopped being a ring with a mark in it.
+    assert.equal(readFileSync(join(srcDir, ALERT), "utf8"), ringIcon(ALERT_MARK), ALERT);
+    assert.equal(readFileSync(join(srcDir, BUSY), "utf8"), cometIcon(), BUSY);
 });
 
 test("the wait is the only icon that moves", () => {
-    // An alert that breathed would read as a check still running, and the two
+    // An alert that turned would read as a check still running, and the two
     // states would become one.
-    for (const mark of Object.keys(STATE_ICONS)) {
-        assert.equal(ringIcon(mark).includes("@keyframes"), mark === BUSY_MARK, mark);
-    }
+    assert.ok(cometIcon().includes("@keyframes"));
+    assert.ok(!ringIcon(ALERT_MARK).includes("@keyframes"));
     assert.ok(!readFileSync(join(srcDir, LOGO), "utf8").includes("@keyframes"));
 });
 
-test("the logo is drawn in the colour the rest of the button is", () => {
+test("the logo is drawn in the colour the alert is", () => {
     // It is hand written and outside the drawing, being a different thing, so
     // the day one of the two is repainted this is what says the other was not.
     assert.ok(readFileSync(join(srcDir, LOGO), "utf8").includes(RING_COLOR));
+});
+
+test("the wait is not drawn in the red the other two share", () => {
+    // Red is what asks for attention and a check merely running asks for none,
+    // so the day someone unifies the two colours this is what refuses it.
+    assert.ok(!cometIcon().includes(RING_COLOR));
 });

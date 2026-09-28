@@ -20,18 +20,6 @@
  * then dropped.
  */
 
-/**
- * A check under way, three middle dots and not U+2026.
- *
- * The ellipsis glyph sits on the baseline, which lands it on the bottom of the
- * ring, where these three sit at its centre. Exported because `test/icons.mjs`
- * draws the icons and the wait is the one that breathes.
- */
-export const BUSY_MARK = "···";
-
-/** A pass that never reached the server. */
-const ALERT_MARK = "!";
-
 /** The logo, the wavy line alone, which is a message with nothing to say. */
 const LOGO = "icons/icon.svg";
 
@@ -40,14 +28,12 @@ const LOGO = "icons/icon.svg";
  *
  * A toolbar icon is chosen among packaged files and can never be drawn: the
  * `path` of `setIcon` is validated as a relative URL, and an `imageData` is
- * turned into a `data:` PNG the compose window's CSP refuses. These two keep the
- * ring because they report something happening and not a number, and
- * `test/icons.mjs` draws both of them from these very pairs.
+ * turned into a `data:` PNG the compose window's CSP refuses. Two states and two
+ * files, so two names and no table pairing them: what either one is a picture of
+ * is `test/icons.mjs`'s business, and it draws both from these very names.
  */
-export const STATE_ICONS = {
-    [ALERT_MARK]: "icons/icon-alert.svg",
-    [BUSY_MARK]: "icons/icon-busy.svg",
-};
+export const BUSY_ICON = "icons/icon-busy.svg";
+export const ALERT_ICON = "icons/icon-alert.svg";
 
 /**
  * The colour a count sits on, and the only one the badge needs.
@@ -118,14 +104,14 @@ export function buttonFor(state) {
     const label = labelOf(state?.language);
 
     if (state?.busy) {
-        return button(STATE_ICONS[BUSY_MARK], "", "Checking", label);
+        return button(BUSY_ICON, "", "Checking", label);
     }
     // Nobody asked for this state, and it says itself for the same reason as
     // the others: the icon is all the button has to report what the check did,
     // and a pass that reached no server would otherwise wear the logo and read
     // as a message with nothing wrong with it.
     if (state?.failed) {
-        return button(STATE_ICONS[ALERT_MARK], "", "LanguageTool could not be reached", label);
+        return button(ALERT_ICON, "", "LanguageTool could not be reached", label);
     }
 
     const errors = countOf(state?.errors);

@@ -27,7 +27,7 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { crc32, deflateSync } from "node:zlib";
 
-import { BUSY_MARK, STATE_ICONS } from "../src/background/button.js";
+import { ALERT_ICON, BUSY_ICON } from "../src/background/button.js";
 import { SWATCHES, swatchFor } from "../src/background/swatch.js";
 import { srcDir } from "./helpers.mjs";
 
@@ -50,50 +50,90 @@ const SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const COLOR_TYPE_RGBA = 6;
 
 /**
- * The red the rings are drawn in.
+ * The red the ring is drawn in.
  *
- * Written in because Thunderbird hands a WebExtension toolbar icon no context
- * properties: `currentColor` and `context-fill` would resolve to nothing there.
- * It stays above 3:1 against both the light and the dark toolbar, so one file
- * serves both, and it is the logo's own red so that a check under way reads as
- * the same extension working and not as another state. `src/icons/icon.svg` is hand
- * written and spells the same value, which `test/button.test.mjs` holds the two
- * to.
+ * Written in, as `WAIT_COLOR` is, because Thunderbird hands a WebExtension
+ * toolbar icon no context properties: `currentColor` and `context-fill` would
+ * resolve to nothing there. It stays above 3:1 against both the light and the
+ * dark toolbar, so one file serves both, and it is the logo's own red so that a
+ * pass that failed still reads as this extension and not as something else that
+ * turned up in the toolbar. `src/icons/icon.svg` is hand written and spells the
+ * same value, which `test/button.test.mjs` holds the two to.
  */
 export const RING_COLOR = "#e74c3c";
+
+/**
+ * The teal the wait is drawn in, where the logo and the alert are red.
+ *
+ * The divergence is the whole point: red is the colour that asks for attention,
+ * and a check merely running asks for none. Carrying the same value as the style
+ * swatch of `src/background/swatch.js` is a coincidence and not a link, one
+ * standing for a mistake of style and the other for work under way, and nothing
+ * is to hold the two equal.
+ *
+ * It is also the one product colour that survived being measured. Of the five
+ * `SWATCHES` carries, it alone clears 3:1 on a light toolbar and on a dark one:
+ * 3.12:1 on the light `#f9f9fb`, 4.32:1 on the dark `#2b2a33`, and 3.06:1 on the
+ * worst mid grey between them. The blue, the red and the violet all fall to
+ * about 2.5:1 on a dark bar, and the orange holds on the two real bars alone. So
+ * a colour reached for from that palette to paint something in the chrome is a
+ * colour to measure first, whatever it is doing in the message body.
+ */
+export const WAIT_COLOR = "#16a085";
 
 /**
  * The type size the ring holds.
  *
  * The ring is twelve and a half pixels across inside its stroke, which the
- * exclamation mark or the three dots fill at eleven and are read at a glance in
- * a toolbar.
+ * exclamation mark fills at eleven and is read at a glance in a toolbar.
  */
 const RING_FONT_SIZE = 11;
 
+/** The one mark a ring still holds, a pass that never reached the server. */
+const ALERT_MARK = "!";
+
 /**
- * What makes the wait breathe, which is a CSS animation inside the file, the
- * way Thunderbird animates its own spinner
+ * What makes the wait turn, which is a CSS animation inside the file, the way
+ * Thunderbird animates its own spinner
  * (chrome://messenger/skin/icons/spinning.svg).
  *
  * The wait lives in the icon because nothing can draw a border, a halo or a
  * motion around the button itself: the extension owns these 18 by 18 pixels and
  * nothing else. That such a file really animates in this position, a toolbar
  * action icon, had no precedent in the shipped build and was watched on the
- * button to be sure of it. It is bound to the group, so the dots breathe with
- * the ring instead of standing still while it shrinks past them.
+ * button to be sure of it.
+ *
+ * `transform-box` reads as noise and is not. The centre is given in user units,
+ * and those are the view box's units only where the box is named. Left to the
+ * element's own, the arc measures its 8 by 8 from its own corner and turns
+ * around a point that is nowhere near the middle of the icon. Nothing rasterised
+ * catches that either, a still renderer running no CSS at all, so it would show
+ * for the first time on the button.
  */
-const BREATHING = `
+const TURNING = `
     <style>
-        @keyframes olcBreathe {
-            from { scale: 0.7; opacity: 0.25; }
-            to { scale: 1; opacity: 1; }
+        @keyframes olcTurn {
+            to { transform: rotate(360deg); }
         }
-        #ring {
-            animation: olcBreathe 1s ease-in-out infinite alternate;
-            transform-origin: 50% 50%;
+        #comet {
+            animation: olcTurn 1.4s linear infinite;
+            transform-box: view-box;
+            transform-origin: 8px 8px;
         }
     </style>`;
+
+/**
+ * The head of the comet and the two steps of its tail, as the offset each one
+ * starts at, how opaque it is and how its end is cut.
+ *
+ * The offsets are never negative, SVG 1.1 having called a negative
+ * `stroke-dashoffset` an error.
+ */
+const TRAIL = [
+    ["24.00", "0.3", "butt"],
+    ["29.28", "0.6", "butt"],
+    ["0.00", "1.0", "round"],
+];
 
 /** The note a drawn file carries, its shape being decided somewhere else. */
 const PROVENANCE = `    <!-- Drawn by test/icons.mjs, which holds the shape and its reasons. Change
@@ -114,16 +154,42 @@ function glyph(mark) {
 /**
  * The whole SVG file of the ring holding one mark.
  *
- * @param {string} mark What sits at the centre of the ring, as `STATE_ICONS`
- *        keys one.
+ * @param {string} mark What sits at the centre of the ring.
  * @returns {string} Ready to write beside the rest of the extension.
  */
 export function ringIcon(mark) {
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16" stroke="${RING_COLOR}">
-${PROVENANCE}${mark === BUSY_MARK ? BREATHING : ""}
+${PROVENANCE}
     <g id="ring">
         <circle cx="8" cy="8" r="7" fill="none" stroke-width="1.5"/>
         ${glyph(mark)}
+    </g>
+</svg>
+`;
+}
+
+/** One arc of the comet, the three of them differing in nothing but a `TRAIL` row. */
+function arc([offset, opacity, cap]) {
+    return `<circle cx="8" cy="8" r="5.5" fill="none" stroke="${WAIT_COLOR}" stroke-width="2.0" stroke-linecap="${cap}" stroke-dasharray="5.53 29.03" stroke-dashoffset="${offset}" opacity="${opacity}"/>`;
+}
+
+/**
+ * The whole SVG file of the wait.
+ *
+ * A faint ring holds the silhouette, so the button is never a gap in the toolbar
+ * while the arc is on the far side of it. Turning is what the wait is drawn as
+ * because a turn reports nothing: it has no first frame and no last, where a
+ * mark that grew or settled would read as a result. The three steps of opacity
+ * give the arc a direction of travel, which is what tells turning from shaking.
+ *
+ * @returns {string} Ready to write beside the rest of the extension.
+ */
+export function cometIcon() {
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
+${PROVENANCE}${TURNING}
+    <circle cx="8" cy="8" r="5.5" fill="none" stroke="${WAIT_COLOR}" stroke-width="2.0" opacity=".22"/>
+    <g id="comet">
+${TRAIL.map((step) => `        ${arc(step)}`).join("\n")}
     </g>
 </svg>
 `;
@@ -233,9 +299,7 @@ if (process.argv.includes("--draw")) {
         console.log(`OK ${name} (${file.length} bytes)`);
     }
 
-    for (const [mark, name] of Object.entries(STATE_ICONS)) {
-        const file = ringIcon(mark);
-
+    for (const [name, file] of [[ALERT_ICON, ringIcon(ALERT_MARK)], [BUSY_ICON, cometIcon()]]) {
         writeFileSync(join(srcDir, name), file);
         console.log(`OK ${name} (${Buffer.byteLength(file)} bytes)`);
     }
