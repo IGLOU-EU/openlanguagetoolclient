@@ -26,10 +26,11 @@ body {
     margin: 0 0 1.2em;
 }
 
-.field.check {
-    flex-direction: row;
+/* The box sits inside its own title, so that title is a row of its own. */
+.field.check label {
+    display: flex;
     align-items: center;
-    gap: 0.5em;
+    gap: 0.4em;
 }
 
 input,
@@ -45,13 +46,8 @@ select {
     box-sizing: border-box;
 }
 
-.field.check input,
-.field.check label {
-    width: auto;
-}
-
 /* A setting that cannot be used has to look like one, because the reason it is
-   closed is written next to it and nothing else would send the reader there. */
+   closed is written above it and nothing else would send the reader there. */
 select:disabled {
     opacity: 0.5;
 }
@@ -59,6 +55,9 @@ select:disabled {
 .hint {
     font-size: 0.9em;
     color: GrayText;
+    /* A hint explains the title it sits under, so it stays nearer to that title
+       than to the field it introduces. */
+    margin-bottom: 0.25em;
 }
 
 .actions {

@@ -9,13 +9,15 @@
         <form id="settings">
             <p class="field">
                 <label for="url">Server address</label>
+                <span class="hint">The API root of your LanguageTool server, /v2 included.</span>
                 <input id="url" type="text" inputmode="url" spellcheck="false"
                        placeholder="https://languagetool.example/v2">
-                <span class="hint">The API root of your LanguageTool server, /v2 included.</span>
             </p>
 
             <p class="field">
                 <label for="language">Language</label>
+                <span class="hint">Set one and every check uses it, whatever the message
+                    is written in.</span>
                 <select id="language">
                     <!-- The value is DETECT_LANGUAGE, which src/settings.js declares and
                          every script reads from there. Markup imports nothing, so this is
@@ -26,24 +28,24 @@
 
             <p class="field">
                 <label for="mother-tongue">Mother tongue</label>
+                <span class="hint">Used to catch the mistakes typical of that tongue.</span>
                 <select id="mother-tongue">
                     <option value="">None</option>
                 </select>
-                <span class="hint">Used to catch the mistakes typical of that tongue.</span>
             </p>
 
             <p class="field">
                 <label for="variants">Preferred variants</label>
+                <span class="hint">Which variant a detected language is checked with, one
+                    per language.</span>
+                <span class="hint" id="variants-note" hidden>The server refuses them
+                    alongside a fixed language.</span>
                 <select id="variants" multiple size="5"></select>
-                <span class="hint" id="variants-note" hidden>
-                    The server refuses preferred variants together with a fixed language,
-                    so they only apply to automatic detection.
-                </span>
             </p>
 
             <p class="field check">
-                <input id="picky" type="checkbox">
-                <label for="picky">Picky mode, which also reports style and typography</label>
+                <label><input id="picky" type="checkbox"> Picky mode</label>
+                <span class="hint">Also reports style and typography.</span>
             </p>
 
             <p class="field">
@@ -53,8 +55,8 @@
 
             <p class="field">
                 <label for="idle-seconds">Wait before checking</label>
-                <input id="idle-seconds" type="number" step="0.1">
                 <span class="hint">Seconds of quiet typing before the message is checked.</span>
+                <input id="idle-seconds" type="number" step="0.1">
             </p>
 
             <p class="actions">
