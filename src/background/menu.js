@@ -145,6 +145,17 @@ const GLOBE = "icons/glyph-globe.svg";
 const MAGNIFIER = "icons/glyph-magnifier.svg";
 const ARROWS = "icons/glyph-arrows.svg";
 const GEAR = "icons/glyph-gear.svg";
+const CLIPBOARD = "icons/glyph-list.svg";
+
+/**
+ * The entry that opens the window listing the mistakes of this message.
+ *
+ * Exported because the event page answers this click itself, the way it answers
+ * the settings one, and it has to know the entry by name to do it. The whole
+ * wiring of that window to the interface is this id and the branch that reads it:
+ * a split button or a keyboard shortcut would call the same line.
+ */
+export const LIST_ID = "olc-list";
 
 /**
  * The submenu that holds the languages, and the stem of its children's ids.
@@ -185,6 +196,10 @@ const DETECTION_ID = `${LANGUAGE_STEM}${DETECT_LANGUAGE}`;
 export function actionMenuItems(state) {
     const language = textOf(state?.language);
     const items = [
+        // First, because it is the one entry that opens something to work in, and
+        // the event page answers it on its own: nothing of it is the compose
+        // window's business.
+        iconic(LIST_ID, "List the mistakes", "normal", false, CLIPBOARD),
         iconic(LANGUAGE_ID, "Language", "normal", false, GLOBE),
         languageItem(DETECTION_ID, "Detect automatically", language === ""),
     ];

@@ -36,7 +36,7 @@
      */
     const HOST_TAG = "olc-panel";
 
-    // Room for the wavy underline between the word and the panel, without the
+    // Room for the underline between the word and the panel, without the
     // panel drifting away from what it explains.
     const MARGIN = 6;
 

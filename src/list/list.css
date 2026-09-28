@@ -1,0 +1,156 @@
+/* The window has to read as one of Thunderbird's own, so it takes the platform's
+   interface font and the system colours instead of a palette of its own, the way
+   src/options/options.css does. The color-scheme declaration is what makes the
+   canvas, the text and the buttons follow the light or dark preference: without
+   it an extension page is rendered light whatever the user set.
+
+   The colours of the families are the one exception, since they carry meaning,
+   and none of them is written here: each comes with its mistake and is set on the
+   element, so src/background/swatch.js stays the one place they are declared. */
+
+:root {
+    color-scheme: light dark;
+}
+
+/* The window is a frame: the count stays where it is, and the list is what
+   scrolls under it. */
+html,
+body {
+    height: 100%;
+}
+
+body {
+    font: message-box;
+    color: CanvasText;
+    background: Canvas;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+p {
+    margin: 0;
+}
+
+#chrome {
+    padding: 0.8em 1em;
+    border-bottom: 1px solid ButtonBorder;
+}
+
+/* What the window says about itself and what says which mistake this is: read
+   after the extract and the explanation, never instead of them. */
+#status,
+.kind {
+    color: GrayText;
+}
+
+.kind {
+    font-size: 0.9em;
+}
+
+#view {
+    flex: 1;
+    min-height: 0;
+    padding: 1em;
+    overflow: auto;
+}
+
+.list {
+    /* Held to a measure a line is read at and centred in the window, because a
+       row stretched across a window the reader has widened would be read twice. */
+    max-width: 34em;
+    margin-inline: auto;
+    /* Ordered, because the mistakes come in the order of the text and the window
+       is there to go through them one after another. The markers are off: a
+       number in front of every row says nothing the order does not already say,
+       and it takes the eye before the text being corrected does. */
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6em;
+    margin: 0;
+    padding: 0;
+}
+
+li {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25em;
+    padding: 0.5em 0.7em;
+    border: 1px solid ButtonBorder;
+    /* The family's colour, set on the element per mistake, the way the panel says
+       it down the edge of its card. A mistake painted no colour keeps the
+       hairline's own, where a band of CanvasText would state a family in the
+       colour of plain text. */
+    border-inline-start-width: 5px;
+    border-radius: 4px;
+    /* The radius curves a band this wide away over its whole width, and both ends
+       of it then read as chipped rather than as drawn. */
+    border-start-start-radius: 0;
+    border-end-start-radius: 0;
+}
+
+/* The row being worked on, which is not the same thing as the row the keyboard is
+   on: the focus goes off to one of the row's corrections while the row itself
+   stays the one being worked on, so the two are said differently.
+
+   A tint of the platform's accent rather than its selection colour, because the
+   row carries grey text of its own that a selected background would leave
+   unreadable. ButtonFace first, for the engine that has neither the accent nor
+   the mixing: a raised surface still tells the row apart. */
+li.current {
+    background: ButtonFace;
+    background: color-mix(in srgb, AccentColor 12%, Canvas);
+}
+
+/* Drawn inside the row, because the list is what scrolls and a ring outside it
+   would be cut off against the edge of the region. */
+li:focus-visible {
+    outline: 2px solid AccentColor;
+    outline-offset: -2px;
+}
+
+/* Marked the way the message marks it, in the same dotted line and the same
+   colour, so a row and the underlined word it stands for read as one thing.
+   src/compose/compose.css draws the mark in the message and this draws it again,
+   in a window whose text is nobody's message and which follows no thickness
+   setting: what is shared is that a reader recognises the same mark. */
+.extract strong {
+    text-decoration-line: underline;
+    text-decoration-style: dotted;
+    text-decoration-thickness: 2px;
+    /* The engine breaks an underline wherever a descender crosses it, which takes
+       the mark off the very letters being corrected. */
+    text-decoration-skip-ink: none;
+}
+
+.fixes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+    margin-top: 0.15em;
+}
+
+button {
+    font: inherit;
+    /* A replacement can be a whole rephrasing, and a button that will not wrap
+       pushes a scrollbar under the whole list. */
+    max-width: 100%;
+    padding: 0.2em 0.5em;
+    color: ButtonText;
+    background: ButtonFace;
+    border: 1px solid ButtonBorder;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+button:hover {
+    color: SelectedItemText;
+    background: SelectedItem;
+}
+
+/* A replacement that deletes shows the text it takes away, and the line through
+   it is what says the text goes. */
+.struck {
+    text-decoration: line-through;
+}

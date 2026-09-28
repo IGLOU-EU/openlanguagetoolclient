@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "OpenLanguageToolClient",
   "version": "0.1.0",
-  "description": "Underlines the errors reported by a LanguageTool server in the compose window.",
+  "description": "Underlines the mistakes a LanguageTool server reports in the compose window.",
   "icons": {
     "16": "icons/icon.svg"
   },
@@ -27,6 +27,20 @@
       "background/background.js"
     ],
     "type": "module"
+  },
+  "commands": {
+    "list-mistakes": {
+      "suggested_key": {
+        "default": "Ctrl+Alt+M"
+      },
+      "description": "List the mistakes in this message"
+    },
+    "check-now": {
+      "suggested_key": {
+        "default": "Ctrl+Alt+S"
+      },
+      "description": "Check this message now, without waiting for the pause"
+    }
   },
   "compose_action": {
     "default_title": "LanguageTool",

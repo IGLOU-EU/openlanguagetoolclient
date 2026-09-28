@@ -8,7 +8,13 @@
 
 import { buttonFor } from "./button.js";
 import { check, languages } from "../languagetool.js";
-import { actionMenuItems, menuItemsFor, orderFor } from "./menu.js";
+import { LIST_ID, actionMenuItems, menuItemsFor, orderFor } from "./menu.js";
+import {
+    PAGE,
+    TAB_PARAMETER,
+    WINDOW_HEIGHT,
+    WINDOW_WIDTH,
+} from "../list/mistakes.js";
 import { DETECT_LANGUAGE, normalize } from "../settings.js";
 import { choiceFor, familyOf, paintFor } from "./swatch.js";
 
@@ -250,6 +256,13 @@ browser.menus.onClicked.addListener((info, tab) => {
         return;
     }
 
+    // The one entry the event page answers with a window of its own: see
+    // `openList`.
+    if (info.menuItemId === LIST_ID) {
+        showList(tab.id);
+        return;
+    }
+
     const order = pending.get(info.menuItemId) ?? orderFor(info);
     if (order === null) {
         return;
@@ -383,6 +396,140 @@ async function closePanel(tabId) {
  */
 browser.compose.onBeforeSend.addListener((tab) => closePanel(tab.id));
 
+/**
+ * Opens the window that lists the errors of one compose window.
+ *
+ * A window of its own, because the button's own popup is exclusive with its menu
+ * and closes on the first click in the message body, which is exactly what
+ * correcting one error after another is made of.
+ *
+ * The compose window travels in the URL, since that is the one place it survives
+ * this page unloading, and `src/list/mistakes.js` says under which name.
+ *
+ * Opened at a size and nowhere in particular. Asking for a position was written
+ * and taken back out: a Wayland client can neither read nor set where its windows
+ * go, the compositor deciding alone, and Thunderbird's own code says screen
+ * information and window positions are not reliable on Linux. So the platform
+ * places it, and a desktop that will not keep it above the compose window is
+ * answered by a window rule of the desktop's own, not by this extension.
+ */
+async function openList(tabId) {
+    const url = new URL(browser.runtime.getURL(PAGE));
+    url.searchParams.set(TAB_PARAMETER, String(tabId));
+
+    await browser.windows.create({
+        type: "popup",
+        url: url.href,
+        width: WINDOW_WIDTH,
+        height: WINDOW_HEIGHT,
+    });
+}
+
+/**
+ * The one place that window is opened from, whichever of the two ways asked for
+ * it, so both reach the very same window and a failure is said once.
+ */
+const showList = (tabId) =>
+    openList(tabId).catch((error) => log("list of errors not opened:", String(error)));
+
+/**
+ * The names the manifest gives the two shortcuts, one opening the list and one
+ * asking for a pass at once.
+ *
+ * Commands of the extension's own rather than the reserved
+ * `_execute_compose_action`: that one reaches the button's menu only because a
+ * shortcut takes a path a click does not, and what rests on a quirk is what the
+ * next release takes away.
+ */
+const LIST_COMMAND = "list-mistakes";
+const CHECK_COMMAND = "check-now";
+
+/**
+ * The keyboard's way to the window the button's menu opens, and to a check that
+ * waits for nothing.
+ *
+ * Both are declared commands rather than a key listened for in the compose
+ * script, because a key the shortcut manager knows nothing of can be neither
+ * found nor rebound by whoever finds it in the way.
+ *
+ * The tab is the one that had the focus when the key was pressed
+ * (`parent/ext-commands.js`, which hands the listener `tabTracker.activeTab`),
+ * and the shortcut is put up in every window the API knows, the main one included
+ * (`ExtensionShortcuts.sys.mjs`, `registerKeys`). Pressed anywhere but in a
+ * compose window it therefore names a tab holding no message, and does nothing at
+ * all.
+ *
+ * The check asked for here is not the menu's "Check the whole message again": it
+ * leaves the cache standing, so only what changed since the last pass goes out.
+ */
+browser.commands.onCommand.addListener((name, tab) => {
+    if (name !== LIST_COMMAND && name !== CHECK_COMMAND) {
+        return;
+    }
+    if (tab?.type !== "messageCompose") {
+        log("no message to work on, the shortcut was pressed outside a compose window");
+        return;
+    }
+    if (name === LIST_COMMAND) {
+        showList(tab.id);
+        return;
+    }
+    browser.tabs
+        .sendMessage(tab.id, { type: "checkNow" })
+        .catch((error) => log("check not asked for:", String(error)));
+});
+
+/**
+ * The errors one compose window holds, for the window that lists them.
+ *
+ * @returns {Promise<{gone: boolean, checking: boolean, body: string, mistakes: object[]}>}
+ * `gone` is true when that compose window did not answer, its message having been
+ * sent, closed or left behind. The list then says so, where an empty list would
+ * read as a message with nothing left to correct. `checking` is false for a
+ * message taken out of the checking, whose empty list means that nothing was ever
+ * read and not that nothing was found, which is the difference between a message
+ * that is clean and one nobody looked at. An answer that says neither reads as
+ * unchecked for the same reason: of the two sentences, that is the one that
+ * claims nothing.
+ */
+async function mistakesIn(tabId) {
+    try {
+        const answer = await browser.tabs.sendMessage(tabId, { type: "mistakes" });
+        return {
+            gone: false,
+            checking: answer?.checking === true,
+            body: answer?.body ?? "",
+            mistakes: answer?.mistakes ?? [],
+        };
+    } catch (error) {
+        log("errors not read, that compose window is gone:", String(error));
+        return { gone: true, checking: false, body: "", mistakes: [] };
+    }
+}
+
+/**
+ * Writes one replacement in one compose window, for the window that lists its
+ * errors.
+ *
+ * The very `apply` the panel and the context menu go through, carrying the same
+ * four fields, because it is the one that refuses to write anywhere but where the
+ * covered text is still found. A third caller earns that guard rather than a
+ * second path.
+ *
+ * @returns {Promise<{gone: boolean}>} Nothing else is known here: the compose
+ * side answers no order, so a correction dropped because the text had moved is
+ * reported in that window's log and nowhere else.
+ */
+async function applyIn({ tabId, offset, length, expected, value }) {
+    try {
+        await browser.tabs.sendMessage(tabId, { type: "apply", offset, length, expected, value });
+        return { gone: false };
+    } catch (error) {
+        log("correction not written, that compose window is gone:", String(error));
+        return { gone: true };
+    }
+}
+
 browser.runtime.onMessage.addListener((message, sender) => {
     if (message?.type === "check") {
         return checkFor(message);
@@ -398,6 +545,14 @@ browser.runtime.onMessage.addListener((message, sender) => {
     }
     if (message?.type === "suggestions") {
         return showSuggestions(message.match);
+    }
+    // The two the window listing the errors sends. It names the compose window
+    // itself, being a context of its own that no `sender.tab` points at.
+    if (message?.type === "mistakes") {
+        return mistakesIn(message.tabId);
+    }
+    if (message?.type === "apply") {
+        return applyIn(message);
     }
 });
 

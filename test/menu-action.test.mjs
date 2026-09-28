@@ -37,6 +37,7 @@ import { MESSAGE_LIMIT, actionMenuItems, menuItemsFor, orderFor } from "../src/b
 import { SWATCHES, blankIcon } from "../src/background/swatch.js";
 import { srcDir } from "./helpers.mjs";
 
+const LIST_ID = "olc-list";
 const LANGUAGE_ID = "olc-language";
 const AUTO_ID = "olc-language-auto";
 const REDETECT_ID = "olc-redetect";
@@ -49,8 +50,12 @@ const CHECKING_RULE_ID = "olc-checking-rule";
 const CHECKING_ID = "olc-checking";
 const CHECKING_NOTE_ID = "olc-checking-note";
 
-/** The language submenu and the one radio it always holds, which come first. */
-const HEAD_IDS = [LANGUAGE_ID, AUTO_ID];
+/**
+ * What comes before the languages the server offered: the window that lists the
+ * errors of this message, then the language submenu and the one radio it always
+ * holds.
+ */
+const HEAD_IDS = [LIST_ID, LANGUAGE_ID, AUTO_ID];
 
 /** Everything under the language list, in the order the menu shows it. */
 const TAIL_IDS = [
@@ -92,6 +97,7 @@ const NOTE_IDS = GROUPS.map(([, , note]) => note);
  * type and draws its own mark in the column instead.
  */
 const GLYPHS = [
+    [LIST_ID, "icons/glyph-list.svg"],
     [LANGUAGE_ID, "icons/glyph-globe.svg"],
     [REDETECT_ID, "icons/glyph-magnifier.svg"],
     [RECHECK_ID, "icons/glyph-arrows.svg"],
@@ -101,12 +107,13 @@ const GLYPHS = [
 /**
  * The entries no order is ever sent for.
  *
- * The parent of the language list takes no click at all, it opens its submenu,
- * and the settings entry is answered by the event page itself, which opens the
- * options page instead of telling the compose window anything. A rule takes no
- * click either, and a line explaining a mode refuses one.
+ * The parent of the language list takes no click at all, it opens its submenu.
+ * The settings entry and the one that lists the errors are answered by the event
+ * page itself, which opens a page and a window of its own instead of telling the
+ * compose window anything. A rule takes no click either, and a line explaining a
+ * mode refuses one.
  */
-const NO_ORDER = [LANGUAGE_ID, OPTIONS_ID, ...RULE_IDS, ...NOTE_IDS];
+const NO_ORDER = [LIST_ID, LANGUAGE_ID, OPTIONS_ID, ...RULE_IDS, ...NOTE_IDS];
 
 /**
  * The order types the compose script answers (`src/compose/compose.js`, the
@@ -264,6 +271,7 @@ test("the captions are the ones the menu shows", () => {
     // nowhere else.
     const items = actionMenuItems(stateOf());
 
+    assert.equal(itemOf(items, LIST_ID).title, "List the mistakes");
     assert.equal(itemOf(items, LANGUAGE_ID).title, "Language");
     assert.equal(itemOf(items, AUTO_ID).title, "Detect automatically");
     assert.equal(itemOf(items, REDETECT_ID).title, "Detect the language again");
@@ -302,6 +310,13 @@ test("a real looking list: the language parent and its radios, then the actions"
     });
 
     assert.deepEqual(items, [
+        {
+            id: LIST_ID,
+            title: "List the mistakes",
+            type: "normal",
+            checked: false,
+            icons: { 16: "icons/glyph-list.svg" },
+        },
         {
             id: LANGUAGE_ID,
             title: "Language",
@@ -404,7 +419,7 @@ test("a real looking list: the language parent and its radios, then the actions"
     ]);
 });
 
-test("the language choice comes first and the two modes last", () => {
+test("the list of errors comes first, the language after it and the two modes last", () => {
     // The menu is read top to bottom while writing, so the order is part of the
     // contract and not an accident of the loop that builds it.
     assert.deepEqual(idsOf(actionMenuItems(stateOf())), SERVER_LIST_IDS);
@@ -487,6 +502,19 @@ test("the settings entry is a plain item nothing is checked on", () => {
     assert.equal(options.type, "normal");
     assert.equal(options.checked, false);
     assert.deepEqual(Object.keys(options).sort(), ITEM_KEYS);
+});
+
+test("the entry that lists the errors is a plain item nothing is checked on", () => {
+    // It opens a window and holds nothing, so a mark on it would read as a mode
+    // left turned on, and it comes first whatever this message is in the middle
+    // of: a state of its own would be a state to keep in step with the window.
+    const items = actionMenuItems(stateOf({ picky: true, checking: false }));
+    const entry = itemOf(items, LIST_ID);
+
+    assert.equal(entry.type, "normal");
+    assert.equal(entry.checked, false);
+    assert.deepEqual(Object.keys(entry).sort(), ITEM_KEYS);
+    assert.equal(idsOf(items)[0], LIST_ID);
 });
 
 test("the two passes asked for by hand sit between the languages and the settings", () => {
@@ -935,6 +963,7 @@ test("detecting the language again orders what the detection radio already order
 for (const [label, menuItemId] of [
     ["the parent of the language list", LANGUAGE_ID],
     ["the settings entry", OPTIONS_ID],
+    ["the entry that lists the errors", LIST_ID],
     ["the rule above a mode", PICKY_RULE_ID],
     ["the rule above the other mode", CHECKING_RULE_ID],
     ["the line explaining a mode", PICKY_NOTE_ID],

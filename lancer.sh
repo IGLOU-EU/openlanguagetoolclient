@@ -58,9 +58,13 @@ else
   4. stop typing: the check runs on its own after a second and a half
   5. the errors get a dotted underline in the colour of their kind, the
      toolbar button the count
-  6. right click an underlined word for the replacements
-  7. Ctrl+Alt+S still forces a check without waiting
-  8. close Thunderbird to read the report
+  6. left click an underlined word for the panel, right click for the menu
+  7. the button's menu lists the mistakes in a window of their own, one row
+     each, walkable with the arrow keys
+  8. the two shortcuts src/manifest.json declares, which Thunderbird's own
+     shortcut manager shows and lets you rebind, force a check and open
+     that window
+  9. close Thunderbird to read the report
 
 END
 fi

@@ -23,6 +23,14 @@ Ce projet ne répare donc pas une panne. Il remplace un outil qui fonctionne par
 
 Il souligne les erreurs détectées par un serveur LanguageTool dans la fenêtre de composition, propose les corrections dans un panneau ouvert par un clic sur le mot souligné ou dans le menu contextuel, et se tait.
 
+Le soulignement est pointillé et porte la couleur du type d'erreur, une couleur pour chacune des cinq familles : orthographe, grammaire, typographie, style et le reste. Ces mêmes couleurs marquent le panneau, les entrées du menu contextuel et les lignes de la liste, pour qu'un type d'erreur se présente partout de la même façon.
+
+Le bouton de la barre d'outils dit l'état dans son icône : le logo quand il n'y a rien à signaler, un anneau qui tourne pendant une vérification, un anneau marqué d'un point d'exclamation quand le serveur n'a pas pu être joint, et une pastille qui compte les erreurs trouvées. Son menu réunit la langue et une nouvelle détection de celle-ci, une vérification de tout le message, le mode pointilleux, un interrupteur qui sort le message en cours de la vérification, et les réglages.
+
+Une fenêtre à part liste toutes les erreurs du message, ouverte par la première entrée de ce menu ou par un raccourci clavier. Une ligne par erreur, dans l'ordre du texte : l'extrait où elle se trouve, de quel type elle est, combien de texte une correction toucherait, l'explication entière et un bouton par remplacement. Les flèches du clavier parcourent la liste.
+
+Outre le serveur et la langue, les réglages portent l'épaisseur du soulignement, en trois niveaux, et le temps d'arrêt de l'écriture avant qu'une vérification ne parte, en secondes et borné aux deux extrémités. Un second raccourci clavier demande une vérification sans attendre cette pause.
+
 ## Ce qu'il ne fera pas
 
 Reformulation IA, synonymes, statistiques d'écriture, suggestions d'emoji, télémétrie, tests A/B, comptes et abonnements, support des sites web hors Thunderbird.

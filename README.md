@@ -21,7 +21,15 @@ So this project does not fix a breakage. It replaces a tool that works with a fr
 
 ## What this project does
 
-It underlines in the compose window the errors a LanguageTool server detects, offers the corrections in a panel opened by a click on the underlined word or in the context menu, and keeps quiet.
+It underlines in the compose window the mistakes a LanguageTool server detects, offers the corrections in a panel opened by a click on the underlined word or in the context menu, and keeps quiet.
+
+The underline is dotted, and it carries the colour of the kind of mistake, one colour for each of five families: spelling, grammar, typography, style and everything else. The same colours mark the panel, the entries of the context menu and the rows of the list, so a kind of mistake looks the same wherever it is shown.
+
+The toolbar button says the state in its icon: the logo when there is nothing to report, a turning ring while a check runs, a ring with an exclamation mark when the server could not be reached, and a badge counting the mistakes found. Its menu holds the language and a fresh detection of it, a check of the whole message again, the picky mode, a switch that takes the message being written out of the checking, and the settings.
+
+A window of its own lists every mistake of the message, opened by that menu's first entry or by a keyboard shortcut. One row per mistake, in the order of the text: the extract it sits in, what kind of mistake it is, how much of the text a correction would touch, the whole explanation and a button for each replacement. The arrow keys walk the list.
+
+Besides the server and the language, the settings carry the thickness of the underline, in three levels, and how long the writing has to stop before a check runs, in seconds and bounded at both ends. A second keyboard shortcut asks for a check without waiting for that pause.
 
 ## What it will not do
 

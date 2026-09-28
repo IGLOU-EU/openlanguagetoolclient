@@ -323,8 +323,8 @@ async function runCheck() {
         provisional = new Map();
     }
 
-    // Ctrl+Alt+S starts a pass with no typing before it, so the button learns
-    // of it here and not only from the input event.
+    // A pass asked for from the keyboard has no typing before it, so the button
+    // learns of it here and not only from the input event.
     sendState({ busy: true });
 
     // What the body holds against what leaves the machine: skipping the quotes
@@ -414,6 +414,42 @@ function matchUnder(event) {
     }
 
     return { ...found, text: current.text.slice(found.offset, found.offset + found.length) };
+}
+
+/**
+ * Every error the message holds as it stands, and the text their offsets count
+ * in.
+ *
+ * Rebuilt at the moment it is asked for, like the underline and the right click,
+ * so the answer can never describe a text the window no longer holds. The covered
+ * text travels with each error for the same reason as in `matchUnder`: whoever
+ * asked has no DOM of its own, and it is what the write refuses to go ahead
+ * without.
+ *
+ * @returns {{checking: boolean, body: string, mistakes: object[]}} The errors as
+ * the event page painted them, in the order they come in the text, with offsets
+ * counted in `body`. `checking` is what tells an empty list of a message that is
+ * clean from an empty list of a message nothing has read, which is the whole
+ * difference for whoever is about to send it.
+ */
+function currentMistakes() {
+    // A message taken out of the checking shows no underline, so reporting its
+    // errors anywhere would be marking what nothing else marks any more.
+    if (!checking) {
+        return { checking: false, body: "", mistakes: [] };
+    }
+
+    const current = flatten(document.body);
+    const matches = matchesForBlocks(bodyBlocks(current.text), cache, provisional);
+
+    return {
+        checking: true,
+        body: current.text,
+        mistakes: matches.map((match) => ({
+            ...match,
+            text: current.text.slice(match.offset, match.offset + match.length),
+        })),
+    };
 }
 
 /**
@@ -514,6 +550,21 @@ function recheck() {
     scheduler?.runNow();
 }
 
+/**
+ * Checks now instead of at the end of the pause, with the cache left standing so
+ * that only the paragraphs that changed go out.
+ *
+ * Nothing to run while no scheduler is built, so the settings are asked for again
+ * exactly as a keystroke in the body does: see askForSettings.
+ */
+function checkNow() {
+    if (scheduler === null) {
+        askForSettings();
+        return;
+    }
+    scheduler.runNow();
+}
+
 // Built only once the event page has said how long a wait to give it, hence the
 // optional call at every place a pass is asked for. No delay is spelled out here
 // to stand in meanwhile: it would be a second declaration of a value that belongs
@@ -557,14 +608,6 @@ document.addEventListener("input", () => {
     // the extension reads as dead for that whole pause.
     sendState({ busy: true });
     scheduler.request();
-}, true);
-
-// Ctrl+Alt+S stays as the way to get a check without waiting for the pause.
-document.addEventListener("keydown", (event) => {
-    if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "s") {
-        event.preventDefault();
-        scheduler?.runNow();
-    }
 }, true);
 
 // preventDefault is never called here: the native menu is the whole point, and
@@ -617,8 +660,9 @@ document.addEventListener("click", (event) => {
     });
 });
 
-// The orders the event page sends: one from the compose body's menu, four from
-// the button's own, and one from the send about to happen.
+// What the event page sends: one order from the compose body's menu, four from
+// the button's own, one from a keyboard shortcut, one from the send about to
+// happen, and the question the window listing the errors asks through it.
 browser.runtime.onMessage.addListener((message) => {
     if (message?.type === "apply") {
         applyReplacement(message);
@@ -634,6 +678,14 @@ browser.runtime.onMessage.addListener((message) => {
     }
     if (message?.type === "recheck") {
         recheck();
+    }
+    if (message?.type === "checkNow") {
+        checkNow();
+    }
+    if (message?.type === "mistakes") {
+        // Answered rather than left silent, because the window that asked has no
+        // other way of knowing what this message holds.
+        return Promise.resolve(currentMistakes());
     }
     if (message?.type === "closePanel") {
         panel.hide();

@@ -20,7 +20,7 @@
  * then dropped.
  */
 
-/** The logo, the wavy line alone, which is a message with nothing to say. */
+/** The logo alone, which is a message with nothing to say. */
 const LOGO = "icons/icon.svg";
 
 /**

@@ -1,12 +1,20 @@
 /**
  * The contract of src/manifest.json: every path it names is a file that ships,
- * and the compose scripts end with the one allowed to declare at top level.
+ * the compose scripts end with the one allowed to declare at top level, and every
+ * keyboard shortcut it declares is answered and can be rebound.
  *
  * Nothing at runtime reports a path that resolves to nothing. A wrong entry in
  * `compose_scripts` leaves the compose side silent, with no underline and no
  * error anywhere, and a wrong icon draws the engine's torn page. The paths are
  * walked out of the file itself and never listed here, so a key added to the
  * manifest later is covered without anyone remembering this file.
+ *
+ * A shortcut fails the same way: a command fires under the name the manifest
+ * gives it, JSON imports no module, so that name is spelled in the event page
+ * too. Spelled differently in one of the two, the key does nothing at all and
+ * says so nowhere. The two copies are held equal here for want of a build step to
+ * derive one from the other. Two commands asking for the same combination fail as
+ * quietly, one of them never firing.
  */
 
 import assert from "node:assert/strict";
@@ -57,6 +65,46 @@ test("every path the manifest names is a file the extension ships", () => {
 
     for (const path of paths) {
         assert.ok(existsSync(join(srcDir, path)), `no packaged file named ${path}`);
+    }
+});
+
+test("every shortcut the manifest declares is answered by the event page", () => {
+    const source = readFileSync(join(srcDir, "background/background.js"), "utf8");
+
+    for (const name of Object.keys(manifest.commands ?? {})) {
+        assert.ok(source.includes(`"${name}"`), `no listener answers to ${name}`);
+    }
+});
+
+test("every shortcut the manifest declares asks for a combination of its own", () => {
+    // A command with no combination is a feature nothing reaches until somebody
+    // binds it by hand, and two commands asking for the same one are two keys
+    // appended to the same keyset, of which only one ever fires
+    // (`ExtensionShortcuts.sys.mjs`, `registerKeysToDocument`, which builds a key
+    // element per command and compares none of them).
+    const claimed = new Map();
+
+    for (const [name, command] of Object.entries(manifest.commands ?? {})) {
+        const combination = command.suggested_key?.default;
+        assert.equal(typeof combination, "string", name);
+        assert.notEqual(combination, "", name);
+        assert.equal(
+            claimed.get(combination),
+            undefined,
+            `${name} asks for the combination of ${claimed.get(combination)}`,
+        );
+        claimed.set(combination, name);
+    }
+});
+
+test("every shortcut the manifest declares can be found and changed", () => {
+    // The add-on manager lists a command under its description, and the one that
+    // carries none is a key nobody can discover or rebind: the description and
+    // the suggested combination are all a command holds
+    // (`schemas/commands.json`, CommandsShortcut).
+    for (const [name, command] of Object.entries(manifest.commands ?? {})) {
+        assert.equal(typeof command.description, "string", name);
+        assert.notEqual(command.description, "", name);
     }
 });
 
