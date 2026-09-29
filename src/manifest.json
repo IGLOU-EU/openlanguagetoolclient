@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "OpenLanguageToolClient",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Underlines the mistakes a LanguageTool server reports in the compose window.",
   "icons": {
     "16": "icons/icon.svg"
