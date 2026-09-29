@@ -1,0 +1,98 @@
+# CI for the LanguageTool client for Thunderbird.
+#
+# On the default branch and on merge requests: the unit suite, and nothing else.
+# On a version tag: build the package, publish it on addons.thunderbird.net,
+# then attach it to a GitLab release.
+#
+# The tag names the version and the manifest must agree with it. They disagree,
+# the pipeline stops: a package whose number contradicts its tag is a release
+# nobody can trace back to a commit. Raise the version in src/manifest.json,
+# commit, then tag that commit.
+#
+#   git tag -a v1.2.3 -m "version 1.2.3" && git push origin v1.2.3
+#
+# Required CI/CD variables (Settings > CI/CD > Variables), both Masked, from
+# https://addons.thunderbird.net/en-US/developers/addon/api/key/ :
+#   ATN_API_KEY     the API key, of the form user:543210:23
+#   ATN_API_SECRET  its secret
+# Marked Protected, they also need the tags protected (Settings > Repository >
+# Protected tags, pattern v*), otherwise the publish job never sees them and
+# fails on a missing key.
+#
+# The Node floor lives in package.json, and the image is held in step with it
+# by hand: a pipeline that runs a newer Node than the floor proves nothing
+# about the floor.
+
+stages:
+  - test
+  - publish
+  - release
+
+default:
+  image: node:20
+
+# A version tag, the only thing that ever publishes anything. The leading v is
+# optional, and stripped before the version is compared and the package named.
+.on_version_tag: &on_version_tag
+  if: $CI_COMMIT_TAG =~ /^v?\d+\.\d+/
+
+test:
+  stage: test
+  # No install step: the extension has no dependency, which is the point of it.
+  script:
+    - npm test
+  rules:
+    - *on_version_tag
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+publish:
+  stage: publish
+  rules:
+    - *on_version_tag
+  before_script:
+    # zip is what package.sh builds the archive with, and the image has none.
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends zip
+  script:
+    - VERSION="${CI_COMMIT_TAG#v}"
+    - MANIFEST_VERSION=$(node -p "require('./src/manifest.json').version")
+    - |
+      if [ "$VERSION" != "$MANIFEST_VERSION" ]; then
+        echo "tag $CI_COMMIT_TAG against manifest $MANIFEST_VERSION: raise the version in src/manifest.json and tag that commit" >&2
+        exit 1
+      fi
+    - PACKAGE="openlanguagetoolclient-$VERSION.xpi"
+    - ./package.sh "$PACKAGE"
+    - node ci/atn.mjs "$PACKAGE"
+    # Read back by the release job, which names the file it links to.
+    - printf 'VERSION=%s\n' "$VERSION" > build.env
+    - printf 'PUBLISH_JOB_ID=%s\n' "$CI_JOB_ID" >> build.env
+  artifacts:
+    # Kept even when ATN refuses the version: the package is then the one thing
+    # needed to understand why, or to upload it by hand.
+    when: always
+    paths:
+      - "openlanguagetoolclient-*.xpi"
+    reports:
+      dotenv: build.env
+    expire_in: never
+
+release:
+  stage: release
+  # The release keyword is served by this image and no other.
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  needs:
+    - job: publish
+      artifacts: true
+  rules:
+    - *on_version_tag
+  script:
+    - echo "release $CI_COMMIT_TAG"
+  release:
+    tag_name: $CI_COMMIT_TAG
+    description: "Published on addons.thunderbird.net. The file below is that same package, which Thunderbird installs as it stands."
+    assets:
+      links:
+        - name: "openlanguagetoolclient-$VERSION.xpi"
+          url: "$CI_PROJECT_URL/-/jobs/$PUBLISH_JOB_ID/artifacts/file/openlanguagetoolclient-$VERSION.xpi"
+          link_type: package

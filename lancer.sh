@@ -40,10 +40,8 @@ id="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['browser_s
 
 mkdir -p "$profile/extensions"
 xpi="$profile/extensions/$id.xpi"
-rm -f "$xpi"
-# All of src/ goes into the package: the file list is written nowhere, it is
-# the folder's.
-( cd "$src" && zip -qr "$xpi" . )
+# The same package the pipeline publishes, built by the same script.
+"$root/package.sh" "$xpi"
 echo "extension installed: $xpi"
 
 if [ -n "$headless" ]; then

@@ -56,6 +56,12 @@ Every commit is signed off, with `git commit -s`. Any commit an LLM took part in
 5. Update the document that owns the fact in the same commit, and only that one.
 6. Open a merge request with a description focused on **why**.
 
+## Releasing
+
+A version goes out by tagging: raise the number in `src/manifest.json`, commit, then tag that commit. `.gitlab-ci.yml` holds what the pipeline does from there, the exact form the tag must take and the CI/CD variables it needs, and `ci/atn.mjs` says why publishing a Thunderbird add-on has nothing to do with addons.mozilla.org.
+
+The listing itself is filled by hand on the site, once: name, description, licence, screenshots, and the release notes of each version. The API adds a version and knows nothing else.
+
 ## License
 
 The project is licensed under [GPL-3.0-or-later](LICENSE). By submitting a contribution you license it under the same terms.

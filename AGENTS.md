@@ -17,6 +17,9 @@ Every fact has one home. Read it there and point to it. Never copy it.
 | Why the project exists, what it will never do | `README.md` |
 | The architecture invariants and their reasons | this file, rule 4 |
 | The launch command and its modes | `lancer.sh`, in its header comment |
+| What goes into the package, and how it is built | `package.sh`, in its header comment |
+| How a version is released, and the variables it needs | `.gitlab-ci.yml`, in its header comment |
+| How a version reaches addons.thunderbird.net | `ci/atn.mjs`, in its header comment |
 | The version, the extension id, the permissions | `src/manifest.json` |
 | The test command, and the Node version it needs | `package.json` |
 | The server, the texts and the parameters of the fixtures | `test/fixtures/cases.json` |
