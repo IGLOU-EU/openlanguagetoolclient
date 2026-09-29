@@ -10,6 +10,12 @@ Client LanguageTool libre pour Thunderbird, conçu pour lui et personne d'autre.
 |![](screenshots/Screenshot_20260928_224528.png)|![](screenshots/Screenshot_20260928_224456.png)|
 
 
+## Installer
+
+[Depuis addons.thunderbird.net](https://addons.thunderbird.net/thunderbird/addon/openlanguagetoolclient/), le site que le gestionnaire de modules de Thunderbird interroge.
+
+Il a besoin d'un serveur LanguageTool et n'en embarque aucun : saisissez son adresse dans les réglages, et choisissez une langue.
+
 ## Pourquoi
 
 L'extension officielle `languagetool-mailextension@languagetool.org` est en réalité l'extension navigateur universelle de LanguageTool, avec une poignée de lignes pour Thunderbird greffées dessus. Elle embarque environ 150 adaptateurs de sites web (Gmail, Slack, Notion, Google Docs, ChatGPT...), une couche de reformulation IA, de la télémétrie, du testing.
