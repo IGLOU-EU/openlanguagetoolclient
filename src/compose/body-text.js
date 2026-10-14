@@ -1,11 +1,12 @@
 /**
  * Text extraction for the compose body: flattening it, skipping what the user
- * did not write, cutting it into the blocks a check is remembered by, dropping
- * the ones a plain text signature carries, grouping those blocks into what one
- * request carries, mapping an offset to the DOM and a position in the DOM back
- * to an offset, finding the error or the block a position falls in, and moving a
- * block's errors when a correction is written over part of it. Pure logic, no
- * DOM mutation, no network, no Thunderbird API.
+ * did not write and the code they did, cutting it into the blocks a check is
+ * remembered by, dropping the ones fenced code or a plain text signature
+ * carries, grouping those blocks into what one request carries, mapping an
+ * offset to the DOM and a position in the DOM back to an offset, finding the
+ * error or the block a position falls in, and moving a block's errors when a
+ * correction is written over part of it. Pure logic, no DOM mutation, no
+ * network, no Thunderbird API.
  *
  * It is a compose script of its own, loaded before compose.js, because a
  * compose script cannot be imported: kept inside compose.js this logic would
@@ -30,11 +31,17 @@
     ]);
 
     /**
-     * True when the element and its whole subtree are not the user's own writing.
+     * True when the element and its whole subtree are not prose the user wrote.
      *
      * Thunderbird marks the quoted message, the line that introduces it and the
      * signature with these, and on a long thread they are most of the bytes. They
      * are also not the user's to correct.
+     *
+     * `<code>` and `<pre>` hold code, written by the Code text style and the
+     * Preformat paragraph format. Code is not prose, is often not in the
+     * language of the message, and draws false positives on nearly every line
+     * of it. The plain text mode writes no `<pre>`, its lines being split by
+     * `<br>` in the body itself, so this cannot swallow a plain text message.
      *
      * `_moz_quote` is the quote of a plain text composition, and it appears in no
      * HTML one, so no mode has to be known here. The line that introduces that
@@ -47,6 +54,9 @@
      * live document, not from a shape this file controls.
      */
     function isSkipped(element) {
+        if (element.nodeName === "CODE" || element.nodeName === "PRE") {
+            return true;
+        }
         const attribute = (name) => element.getAttribute?.(name) ?? null;
         if (element.nodeName === "BLOCKQUOTE" && attribute("type") === "cite") {
             return true;
@@ -212,6 +222,49 @@
 
         const signature = blocks.findIndex((block) => block?.text === "-- ");
         return blocks.slice(0, signature === -1 ? blocks.length : signature);
+    }
+
+    // The fences as CommonMark has them, so that what a Markdown reader shows as
+    // code is what is left out. An opening line holding a backtick after its
+    // fence is inline code there, and taking it for a fence would stop checking
+    // the rest of the message. Spaces are allowed at either end, no-break ones
+    // included, because that is what the HTML editor writes a typed space as.
+    const OPENING_FENCE = /^\s*`{3,}[^`]*$/;
+    const CLOSING_FENCE = /^\s*`{3,}\s*$/;
+
+    /**
+     * The blocks outside Markdown fenced code, both fences dropped with it.
+     *
+     * Code is not prose, is often not in the language of the message, and draws
+     * false positives on nearly every line of it. A fence is a line the user
+     * typed and no element marks it in either mode, hence a rule on blocks, as
+     * for the plain text signature.
+     *
+     * A fence left open runs to the end of the blocks, as in CommonMark: ending
+     * it anywhere else would be a guess. A closing fence carries nothing but
+     * backticks, so a line naming a language inside a block is code.
+     *
+     * @param {{text: string, start: number}[]} blocks
+     * @returns {{text: string, start: number}[]} A list of its own, holding the
+     * blocks it was given and not copies. Empty for a list that is none.
+     */
+    function outsideFences(blocks) {
+        if (!Array.isArray(blocks)) {
+            return [];
+        }
+
+        const kept = [];
+        let fenced = false;
+        for (const block of blocks) {
+            const line = block?.text ?? "";
+            if (fenced ? CLOSING_FENCE.test(line) : OPENING_FENCE.test(line)) {
+                fenced = !fenced;
+            } else if (!fenced) {
+                kept.push(block);
+            }
+        }
+
+        return kept;
     }
 
     /**
@@ -454,6 +507,7 @@
         offsetOf,
         splitBlocks,
         beforeSignature,
+        outsideFences,
         chunkBlocks,
         splitMatches,
         missingBlocks,

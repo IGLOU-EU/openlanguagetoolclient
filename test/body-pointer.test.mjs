@@ -60,7 +60,7 @@ const bodies = [
         el("P", {}, text("Regards.")),
         el("PRE", { classes: ["moz-signature"] }, text("-- \nAdrien\n")))],
     ["a node holding newlines of its own", () => el("BODY", {},
-        el("PRE", {}, text("line one\nline two")))],
+        el("DIV", {}, text("line one\nline two")))],
     ["accents and emoji", () => el("BODY", {},
         el("P", {}, text("Une phrase accentuée : déjà vu."), text(" Deux \u{1f600}.")),
         el("P", {}, text("\u{1f389} et voilà.")))],

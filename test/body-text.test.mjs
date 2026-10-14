@@ -37,8 +37,8 @@ test("the API is published on globalThis, and nothing else is", () => {
     assert.deepEqual(Object.keys(olcBody).sort(), [
         "BLOCK_TAGS", "afterReplacement", "beforeSignature", "blockAt",
         "chunkBlocks", "flatten", "isSkipped", "locate", "matchAt",
-        "matchesForBlocks", "missingBlocks", "offsetOf", "prune", "splitBlocks",
-        "splitMatches",
+        "matchesForBlocks", "missingBlocks", "offsetOf", "outsideFences", "prune",
+        "splitBlocks", "splitMatches",
     ]);
 });
 

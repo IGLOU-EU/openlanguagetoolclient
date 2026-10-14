@@ -44,8 +44,8 @@ const CONFIDENCE_FLOOR = 0.9;
 // A compose script has no import, so the scripts loaded before this one hand
 // over their API through globalThis.
 const {
-    flatten, locate, offsetOf, splitBlocks, beforeSignature, chunkBlocks,
-    splitMatches, missingBlocks, matchesForBlocks, matchAt, blockAt,
+    flatten, locate, offsetOf, splitBlocks, beforeSignature, outsideFences,
+    chunkBlocks, splitMatches, missingBlocks, matchesForBlocks, matchAt, blockAt,
     afterReplacement, prune,
 } = globalThis.olcBody;
 const { createScheduler } = globalThis.olcSchedule;
@@ -93,11 +93,14 @@ let plainText = null;
 const languageInForce = () => forcedLanguage ?? language;
 
 /**
- * The blocks of the flattened body, the signature dropped in a plain text
- * composition.
+ * The blocks of the flattened body, the fenced code dropped, and the signature
+ * too in a plain text composition.
  *
  * Every pass, the right click and the write read the body through here, or one
  * of them would check text another one does not.
+ *
+ * The fences go first, so that a line of code reading like the signature
+ * separator cannot cut the message short.
  *
  * The cut belongs to the plain text mode alone: there the signature is delimited
  * by a line of two hyphens and a space and by nothing else, while a user may
@@ -105,7 +108,7 @@ const languageInForce = () => forcedLanguage ?? language;
  * rest of it silently stop being checked.
  */
 function bodyBlocks(text) {
-    const blocks = splitBlocks(text);
+    const blocks = outsideFences(splitBlocks(text));
     return plainText === true ? beforeSignature(blocks) : blocks;
 }
 
@@ -327,9 +330,9 @@ async function runCheck() {
     // learns of it here and not only from the input event.
     sendState({ busy: true });
 
-    // What the body holds against what leaves the machine: skipping the quotes
-    // and the signature, then the blocks already checked, is only worth
-    // anything if that gap is visible.
+    // What the body holds against what leaves the machine: skipping the quotes,
+    // the signature and the code, then the blocks already checked, is only
+    // worth anything if that gap is visible.
     const bodyLength = document.body.textContent.length;
     const blocks = bodyBlocks(flatten(document.body).text);
 
