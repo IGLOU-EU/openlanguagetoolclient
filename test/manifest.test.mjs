@@ -1,7 +1,8 @@
 /**
  * The contract of src/manifest.json: every path it names is a file that ships,
- * the compose scripts end with the one allowed to declare at top level, and every
- * keyboard shortcut it declares is answered and can be rebound.
+ * the compose scripts end with the one allowed to declare at top level, every
+ * keyboard shortcut it declares is answered and can be rebound, and the add-on
+ * manager points to the source.
  *
  * Nothing at runtime reports a path that resolves to nothing. A wrong entry in
  * `compose_scripts` leaves the compose side silent, with no underline and no
@@ -106,6 +107,13 @@ test("every shortcut the manifest declares can be found and changed", () => {
         assert.equal(typeof command.description, "string", name);
         assert.notEqual(command.description, "", name);
     }
+});
+
+test("the add-on manager links to the source", () => {
+    // Anyone who installs the extension can read what it does with their mail
+    // before trusting it. The address itself lives in the manifest alone.
+    const url = new URL(manifest.homepage_url);
+    assert.equal(url.protocol, "https:", manifest.homepage_url);
 });
 
 test("the compose scripts are loaded with compose.js last", () => {

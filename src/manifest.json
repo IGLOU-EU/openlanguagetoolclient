@@ -3,6 +3,7 @@
   "name": "OpenLanguageToolClient",
   "version": "1.0.0",
   "description": "Underlines the mistakes a LanguageTool server reports in the compose window.",
+  "homepage_url": "https://gitlab.com/iglou.eu/openlanguagetoolclient",
   "icons": {
     "16": "icons/icon.svg"
   },

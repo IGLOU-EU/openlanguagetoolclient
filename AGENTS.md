@@ -20,7 +20,7 @@ Every fact has one home. Read it there and point to it. Never copy it.
 | What goes into the package, and how it is built | `package.sh`, in its header comment |
 | How a version is released, and the variables it needs | `.gitlab-ci.yml`, in its header comment |
 | How a version reaches addons.thunderbird.net | `ci/atn.mjs`, in its header comment |
-| The version, the extension id, the permissions | `src/manifest.json` |
+| The version, the extension id, the permissions, the repository address | `src/manifest.json` |
 | The test command, and the Node version it needs | `package.json` |
 | The server, the texts and the parameters of the fixtures | `test/fixtures/cases.json` |
 | How the fixtures are regenerated | `test/fixtures/capture.mjs`, in its header comment |
