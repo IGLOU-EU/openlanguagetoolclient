@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "OpenLanguageToolClient",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Underlines the mistakes a LanguageTool server reports in the compose window.",
   "homepage_url": "https://gitlab.com/iglou.eu/openlanguagetoolclient",
   "icons": {
